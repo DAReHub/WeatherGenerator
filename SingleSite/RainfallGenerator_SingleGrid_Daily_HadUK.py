@@ -1179,10 +1179,8 @@ def initialise_hourly_array(total_hours):
 # Now we are dealing with HadUK dataset which has 10432 grids (5 KM grid size)
 # this implies we have to take care of a few additional steps
 # which include extracting data from the NetCDF files for a given grid
-# following that we begin the process of running the rainfall generator
-# in this cell we prepare implement the step-1 and 2 of running the rainfall generator
-# which are - preparing the data for 3 different temporal aggregations and 
-# computation of reference statistics
+# Following that we begin the process of running the rainfall generator
+
 
 GRIDS = pd.read_csv('/home/users/azhar199/DATA/HADUK/COMPGRID.csv')
 
@@ -1465,6 +1463,7 @@ ax6.set_ylabel("Rainfall depth (mm)", weight='bold')
 
 plt.tight_layout()
 plt.show()
+
 
 
 
