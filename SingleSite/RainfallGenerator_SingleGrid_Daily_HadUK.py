@@ -756,8 +756,7 @@ def _probability_dry_correction(h, threshold, uncorr_pdry):
     """Estimation of dry probability for non-zero thresholds.
 
     Following Section 4.3 in Burton et al. (2008). Options are only for 24hr
-    duration (thresholds of 0.2 or 1.0 mm) or 1hr duration (thresholds of 0.1 or
-    0.2 mm).
+    duration (thresholds of 0.2 or 1.0 mm).
 
     """
     if h == 24:
@@ -1466,5 +1465,6 @@ ax6.set_ylabel("Rainfall depth (mm)", weight='bold')
 
 plt.tight_layout()
 plt.show()
+
 
 
