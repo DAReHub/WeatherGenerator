@@ -1,4 +1,4 @@
-## This python script is weather generator for a single site, this is a combination of rainfall generator and non-rainfall variable 
+## This python script pertains to weather generator for a single site, this is a combination of rainfall generator and non-rainfall variable 
 ## generator which implies it generates outputs relating to temperature, wind speed, vapour pressure and sunshine duration
 
 
@@ -2291,4 +2291,5 @@ for ax, (real, obs, title, unit) in zip(axs, data):
     ax.legend()
 
 plt.tight_layout()
+
 plt.show()
