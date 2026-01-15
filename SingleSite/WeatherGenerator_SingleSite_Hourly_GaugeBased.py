@@ -1979,7 +1979,7 @@ def getDates(year,month,SIMLIST):
 ## the input to the non-rainfall generator
 
 
-dfb = pd.read_csv('/home/users/azhar199/DATA/WG_Single_Site/hourly_rainfall.csv')
+dfb = pd.read_csv('/home/users/DATA/WG_Single_Site/hourly_rainfall.csv')
 dfb.columns=['datetime','value']
 dfb['datetime'] = pd.to_datetime(dfb['datetime'],format='%d/%m/%Y %H:%M') 
 dfb.index = dfb['datetime']
@@ -2061,11 +2061,11 @@ all_realizations_df['Year'] = [all_realizations_df['DateTime'][i].year for i in 
 all_realizations_df['Month'] = [all_realizations_df['DateTime'][i].month for i in range(all_realizations_df.shape[0])]
 
 # prepare the input weather series 
-ITS = pd.read_csv('/home/users/azhar199/DATA/WG_Single_Site/daily_weather.csv')
+ITS = pd.read_csv('/home/users/DATA/WG_Single_Site/daily_weather.csv')
 CP1 =  pd.to_datetime(ITS['datetime'][0],format = '%Y-%m-%d').year
 CP2 = pd.to_datetime(ITS['datetime'][ITS.shape[0]-1],format = '%Y-%m-%d').year
 input_variables = ['temp_avg', 'dtr', 'vap_press', 'wind_speed', 'sun_dur']
-INPUT_WEATHER_SERIES = prepare_weather_series(input_timeseries = '/home/users/azhar199/DATA/WG_Single_Site/daily_weather.csv',
+INPUT_WEATHER_SERIES = prepare_weather_series(input_timeseries = '/home/users/DATA/WG_Single_Site/daily_weather.csv',
                        input_variables = input_variables,calculation_period = [CP1,CP2],completeness_threshold = 0,
                        wet_threshold = 0.2,season_length = 'month',point_id=1)
 
@@ -2210,7 +2210,7 @@ OBS_WSPD = INPUT_WEATHER_SERIES[1][INPUT_WEATHER_SERIES[1]['variable'] == 'wind_
 OBS_VAPPRES = INPUT_WEATHER_SERIES[1][INPUT_WEATHER_SERIES[1]['variable'] == 'vap_press']
 OBS_SDUR = INPUT_WEATHER_SERIES[1][INPUT_WEATHER_SERIES[1]['variable'] == 'sun_dur']
 
-IWS = pd.read_csv('/home/users/azhar199/DATA/WG_Single_Site/daily_weather.csv')
+IWS = pd.read_csv('/home/users/DATA/WG_Single_Site/daily_weather.csv')
 IWS['Year'] = [pd.to_datetime(IWS['datetime'][i],format = '%Y-%m-%d').year for i in range(IWS.shape[0])]
 IWS['Month'] = [pd.to_datetime(IWS['datetime'][i],format = '%Y-%m-%d').month for i in range(IWS.shape[0])]
 IWS2 = IWS[IWS['Year'].isin(np.arange(CP1,CP2+1,1))].reset_index(drop=True)
@@ -2293,3 +2293,4 @@ for ax, (real, obs, title, unit) in zip(axs, data):
 plt.tight_layout()
 
 plt.show()
+
