@@ -794,6 +794,10 @@ def _probability_dry_correction(h, threshold, uncorr_pdry):
                 dy = 0.7617
                 m = dy / dx
                 corr_pdry = m * uncorr_pdry
+        elif threshold == 0.4:
+                corr_pdry = 0.371772 + 0.648429 * uncorr_pdry
+        elif threshold == 0.5:
+                corr_pdry = 0.444149 + 0.569645 * uncorr_pdry  
 
     elif h == 1:
 
@@ -805,8 +809,10 @@ def _probability_dry_correction(h, threshold, uncorr_pdry):
                 corr_pdry = 0.242538 + 0.783787 * uncorr_pdry
             elif uncorr_pdry > 0.845:
                 corr_pdry = 0.378591 + 0.622819 * uncorr_pdry
-            #corr_pdry = 0.280957 + 0.733858 * uncorr_pdry
-            #corr_pdry = -0.558953*(uncorr_pdry**2) + 1.634226*(uncorr_pdry)-0.078633
+        elif threshold == 0.4:
+                corr_pdry = 0.371772 + 0.648429 * uncorr_pdry
+        elif threshold == 0.5:
+                corr_pdry = 0.444149 + 0.569645 * uncorr_pdry    
         corr_pdry = max(corr_pdry, 0.0)
         corr_pdry = min(corr_pdry, 1.0)
 
@@ -1458,6 +1464,7 @@ ax6.set_ylabel("Rainfall depth (mm)", weight='bold')
 
 plt.tight_layout()
 plt.show()
+
 
 
 
