@@ -1,0 +1,1 @@
+The python scripts provided here are single-site and multi-site formulations of the weather generator. This weather generator simulates synthetic time series of rainfall, mean, minimum and maximum temperatures, wind speed, vapour pressure and sunshine duration at daily and hourly temporal scales.  
