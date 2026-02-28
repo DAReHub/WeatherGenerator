@@ -4197,21 +4197,11 @@ def calculate_pet2(year, month,output_types,values,discretisation_metadata,n_poi
         et0 = (((0.408 * dsvp * (netrad - shf)) + (psy * (900.0 / tavg) * ws2 * (svp - avp))) / (dsvp + (psy * (1.0 + (0.34 * ws2)))))
         return et0   
 
-
-def simulate_daily_weather_spatial(gauge_metadata, RAINFALL_REALIZATIONS_PATH, year, month, n_realizations, predictors, input_variables,transitions,seasons, parameters,interpolated_parameters_spatial, timestep, output_types, n_points, transformations, transformed_statistics_dict, 
-                                 output_variables, wet_threshold, season_length, wind_height, offset_df, point_id, base_seed, realization_counter):
+def simulate_daily_weather_spatial(RAINFALL_REALIZATIONS, year, month, n_realizations, predictors, input_variables, transitions, seasons, parameters, interpolated_parameters_spatial, 
+                                   timestep, output_types, n_points, transformations, transformed_statistics_dict, output_variables, wet_threshold, season_length, wind_height, offset_df, point_id,
+                                   base_seed, realization_counter):
     
-    STN = gauge_metadata.loc[gauge_metadata['point_id']==point_id, 'name'].iloc[0]
-    station_base = STN.replace('.csv', '')   
-    files = glob.glob(f"{RAINFALL_REALIZATIONS_PATH}/*.csv")
-    FILEPATH = [f for f in files if station_base in os.path.basename(f)]
-    STN_RF = [pd.read_csv(fp) for fp in FILEPATH]
-    
-    RAINFALL_REALIZATIONS=pd.concat(STN_RF,axis=1)
-    RAINFALL_REALIZATIONS.columns = ['Realization_'+str(i) for i in np.arange(1,RAINFALL_REALIZATIONS.shape[1]+1,1)]
-    RAINFALL_REALIZATIONS.index = pd.period_range(start='2001-01-01 01:00:00',periods=RAINFALL_REALIZATIONS.shape[0] ,freq='H')
-    RAINFALL_REALIZATIONS['Year'] = RAINFALL_REALIZATIONS.index.year;RAINFALL_REALIZATIONS['Month'] = RAINFALL_REALIZATIONS.index.month
-    RF2 = RAINFALL_REALIZATIONS[(RAINFALL_REALIZATIONS['Year']==year) & (RAINFALL_REALIZATIONS['Month']==month)]
+    RF2 = RAINFALL_REALIZATIONS[(RAINFALL_REALIZATIONS['Year']==year) & (RAINFALL_REALIZATIONS['Month']==month) & (RAINFALL_REALIZATIONS['point_id']==point_id)]
     n_timesteps = RF2.shape[0]
     RAINFALL = []
     for r in range(1,n_realizations+1):
@@ -4270,6 +4260,7 @@ def simulate_daily_weather_spatial(gauge_metadata, RAINFALL_REALIZATIONS_PATH, y
             v_ = np.asarray([v[pool_id - 1]])
         interpolated_parameters_nb[k] = v_
 
+
     n_days = int(n_timesteps / (24 / timestep))
     _n = n_days * len(input_variables) * len(output_types)
     rng = np.random.default_rng(seed = base_seed)
@@ -4277,8 +4268,8 @@ def simulate_daily_weather_spatial(gauge_metadata, RAINFALL_REALIZATIONS_PATH, y
     ri = 0  # counter for residual - for indexing sn_sample (increment after each day+variable combination)
     z_scores = {}; values = {}; lag_z_scores = {}; lag_values = {}; sundur_beta_ppf_funcs = {}
     offset_season = offset_df[(offset_df['season']==season) & (offset_df['point_id']==pool_id)].reset_index(drop=True)
-    LAMDF = pd.DataFrame({'variable':['temp_avg', 'dtr', 'vap_press', 'wind_speed'],'lamda':[transformations[(pool_id, var, season, 'lamda')] for var in ['temp_avg', 'dtr', 'vap_press', 'wind_speed']]})
-    
+    #LAMDF = pd.DataFrame({'variable':['temp_avg', 'dtr', 'vap_press', 'wind_speed'],'lamda':[transformations[(pool_id, var, season, 'lamda')] for var in ['temp_avg', 'dtr', 'vap_press', 'wind_speed']]})
+    LAMDF = pd.DataFrame({'variable':['temp_avg', 'dtr'],'lamda':[transformations[(pool_id, var, season, 'lamda')] for var in ['temp_avg', 'dtr']]})
 
     if 'sun_dur' in input_variables:
         sdurmin = transformations[(pool_id,'sun_dur',season, 'obs_min')]
@@ -4310,11 +4301,13 @@ def simulate_daily_weather_spatial(gauge_metadata, RAINFALL_REALIZATIONS_PATH, y
         
             # Construct arrays with space for first two lags at beginning (requiring lags from previous months)
             # TODO: Check that lag arrays have first position as lag-1 and second position as lag-2
+            
             for variable in simulation_variables:
                 z_scores[(output_type, variable)][0, :] = lag_z_scores[(output_type, variable)][0, :]
                 z_scores[(output_type, variable)][1, :] = lag_z_scores[(output_type, variable)][1, :]
                 values[(output_type, variable)][0, :] = lag_values[(output_type, variable)][0, :]
                 values[(output_type, variable)][1, :] = lag_values[(output_type, variable)][1, :]
+
         
             # Aggregate input rainfall (current month) to daily timestep
             if timestep != 24:
@@ -4360,6 +4353,9 @@ def simulate_daily_weather_spatial(gauge_metadata, RAINFALL_REALIZATIONS_PATH, y
                 season = month
                 rainfall_mean = interpolated_parameters_spatial[('raw_statistics', output_type, variable, season, 'mean')][pool_id-1]
                 rainfall_stdev = interpolated_parameters_spatial[('raw_statistics', output_type, variable, season, 'std')][pool_id-1]
+                rainfall_stdev = abs(rainfall_stdev)
+                if rainfall_stdev < 0.1:
+                    rainfall_stdev = 0.1
                 rainfall_sa = (values[(output_type, 'prcp')] - rainfall_mean) / rainfall_stdev
             elif season_length == 'half-month':
                 season = (month - 1) * 2 + 1
@@ -4378,9 +4374,11 @@ def simulate_daily_weather_spatial(gauge_metadata, RAINFALL_REALIZATIONS_PATH, y
         z_scores[(output_type, 'prcp')][:] = rainfall_sa[:]
         for k, v in z_scores.items():
             z_scores_nb[k] = v
+            
         
         residuals_dummy = np.zeros(n_points[output_type])
         for variable in input_variables:
+            z_scores[(output_type, variable)].fill(0.0)
             z_scores[(output_type, variable)][2:, :], ri = regressions(n_days, season_length, month, variable, sn_sample, ri, transition_key_nb,
                 z_scores_nb, output_type, transitions, parameters_nb, pool_id, predictors_nb,interpolated_parameters_nb, residuals_dummy,)
         
@@ -4443,7 +4441,7 @@ def simulate_daily_weather_spatial(gauge_metadata, RAINFALL_REALIZATIONS_PATH, y
         #                   n_points = n_points, latitude = LATITUDE_DEGREES*np.pi/180, wind_height = wind_height)
         
     return values
-
+                                           
 
 def getDates(year,month,SIMLIST):
     '''
@@ -4459,16 +4457,16 @@ def getDates(year,month,SIMLIST):
 ########## followed by preparing the spatial weather series, regression parameter estimation and simulation
 
 
-timeseries_folder = '/home/users/DATA/WG_Spatial/ThamesWG/RF2'
+timeseries_folder = '/home/users/azhar199/DATA/WG_Spatial/ThamesWG_New/RF'
 timeseries_format = 'csv'
 SD = {12: 1, 1: 1, 2: 1, 3: 2, 4: 2, 5: 2, 6: 3, 7: 3, 8: 3, 9: 4, 10: 4, 11: 4}   
-ALLDF = prepare_spatial_timeseries(point_metadata = pd.read_csv('/home/users/azhar199/DATA/WG_Spatial/ThamesWG/gauge_metadata.csv'),timeseries_folder = timeseries_folder,
+ALLDF = prepare_spatial_timeseries(point_metadata = pd.read_csv('/home/users/azhar199/DATA/WG_Spatial/ThamesWG_New/fict_meta_thames.csv'),timeseries_folder = timeseries_folder,
                                    timeseries_format = 'csv',season_definitions = SD,completeness_threshold = 0,durations = ['1H','24H','72H','1M'],outlier_method = 'trim',maximum_relative_difference = 2,
                                    maximum_alterations = 5)
 
 REF = pd.concat([GetMonthStats(ALLDF[i],i) for i in np.arange(1,len(ALLDF)+1,1)],axis=0)
 FINAL = pd.concat([REF,GetPooledMonthStats(ALLDF)],axis=0)
-IGD = GetInterGaugeDistances('/home/users/azhar199/DATA/WG_Spatial/ThamesWG/gauge_metadata.csv')
+IGD = GetInterGaugeDistances('/home/users/azhar199/DATA/WG_Spatial/ThamesWG_New/fict_meta_thames.csv')
 CROSSCOR = pd.concat([GetCrossCorrel(ALLDF,IGD,i) for i in np.arange(1,13,1)],axis=0)
 POOLCROSS = GetPoolCrossCorrel(CROSSCOR)
 reference_statistics = pd.concat([FINAL,CROSSCOR.drop('distance_bin',axis=1),POOLCROSS],axis=0)
@@ -4496,7 +4494,6 @@ parameter_bounds = {
         'kappa': (0.5,1)
     }.items()}
 
-
 def fit_month_task(month):
     return fit_by_month(unique_months=[month], reference_statistics=reference_statistics,spatial_model=True,intensity_distribution='weibull',n_workers=1,            
            all_parameter_names=all_parameter_names,parameters_to_fit=parameters_to_fit,parameter_bounds=parameter_bounds,fixed_parameters=fixed_parameters,
@@ -4504,7 +4501,7 @@ def fit_month_task(month):
 
 if __name__ == '__main__':
     months = unique_months 
-    with Pool() as pool:    # default uses all available CPUs
+    with Pool(processes=4) as pool:    # default uses all available CPUs
         results = pool.map(fit_month_task, months)
     # Combine the results
     parameters_df = pd.concat([res[0] for res in results], axis=0)
@@ -4519,9 +4516,9 @@ parameters_df.loc[parameters_df['month'].isin([6, 7, 8]), 'season'] = 3
 parameters_df.loc[parameters_df['month'].isin([9, 10, 11]), 'season'] = 4
 
 
-n_realizations = 50
+n_realizations = 100
 n_years = 30
-GMETA = pd.read_csv('/home/users/azhar199/DATA/WG_Spatial/ThamesWG/gauge_metadata.csv')
+GMETA = pd.read_csv('/home/users/azhar199/DATA/WG_Spatial/ThamesWG_New/fict_meta_thames.csv')
 PHIDF = pd.DataFrame({'point_id':reference_statistics['point_id'][(reference_statistics['point_id']!=-1)],'month':reference_statistics['month'][(reference_statistics['point_id']!=-1)],'phi':reference_statistics['phi'][(reference_statistics['point_id']!=-1)]})
 
 PHIDF.index = np.arange(0,PHIDF.shape[0],1)
@@ -4552,7 +4549,7 @@ block_size =  identify_block_size(datetime_helper = DTH, season_definitions = SD
 
 
 main_sim(spatial_model = True,intensity_distribution = 'weibull',output_types = ['point'],
-         output_folder = '/home/users/azhar199/DATA/WG_Spatial/ThamesWG/REALIZATION_THAMES_POINT',output_subfolders = {'point': ''},
+         output_folder = '/home/users/azhar199/DATA/WG_Spatial/ThamesWG_New/REALIZATION_THAMES_POINT',output_subfolders = {'point': ''},
          output_format = 'csv',season_definitions = SD,parameters = parameters_df,point_metadata = GMETA,catchment_metadata = None,
          grid_metadata = None,epsg_code = 27700,cell_size = None,dem = None,phi = PHIDF,simulation_length = 30,
          number_of_realisations = n_realizations,timestep_length = 1.0,start_year = ALLDF[1]['1H']['Year'].min(),calendar = 'gregorian',
@@ -4570,32 +4567,31 @@ main_sim(spatial_model = True,intensity_distribution = 'weibull',output_types = 
 # parameters_df.to_csv('parameters_thames.csv',index = False)
 # fitted_stats.to_csv('fitted_stats_thames.csv',index = False)
 
-
-IV = ['temp_avg', 'dtr', 'vap_press']
-SV = ['temp_avg', 'dtr', 'vap_press']
-weather_metadata = pd.read_csv('/home/users/azhar199/DATA/WG_Spatial/ThamesWG/weather_metadata.csv')
-#weather_metadata['name'] = [weather_metadata['name'][i]+'.csv' for i in np.arange(0,weather_metadata.shape[0],1)]
+IV = ['temp_avg', 'dtr']
+SV = ['temp_avg', 'dtr']
+weather_metadata = pd.read_csv('/home/users/azhar199/DATA/WG_Spatial/ThamesWG_New/fict_meta_thames.csv')
+weather_metadata['name'] = weather_metadata['file_name']
 
 INPUT_WEATHER_SERIES_SPATIAL = process_stations(n_points = {v: 0 for v in IV}, min_points = 5, max_buffer = 150, weather_metadata = weather_metadata,
                                                 xmin = GMETA['easting'].min(), xmax = GMETA['easting'].max(), 
                                                 ymin = GMETA['northing'].min(), ymax = GMETA['northing'].max(), spatial_model=True, spatial_method = 'interpolate',
-                                                input_weatherseries_path = '/home/users/azhar199/DATA/WG_Spatial/ThamesWG/WD',season_length='month', 
-                                                calculation_period = [2001,2020], wet_threshold=0.2, use_neighbours = True, neighbour_radius = 20000, input_variables = IV, 
-                                                raw_statistics = None, simulation_variables = SV, completeness_threshold = 0, n_years =  {v: 0 for v in IV}, data_series = None)
+                                                input_weatherseries_path = '/home/users/azhar199/DATA/WG_Spatial/ThamesWG_New/WDv2',season_length='month', 
+                                                calculation_period = [ALLDF[1]['1H']['Year'].min(),ALLDF[1]['1H']['Year'].max()], wet_threshold=0.2, use_neighbours = True, neighbour_radius = 20000, 
+                                                input_variables = IV, raw_statistics = None, simulation_variables = SV, completeness_threshold = 0, n_years =  {v: 0 for v in IV}, data_series = None)
 
 
 
 TRANSFORMED_SERIES = preprocess(spatial_model = True, spatial_method = 'interpolate', n_points = {v: 0 for v in IV}, min_points = 5, max_buffer = 150, 
                                 weather_metadata = weather_metadata, xmin = weather_metadata['easting'].min(), xmax = weather_metadata['easting'].max(), 
                                 ymin = weather_metadata['northing'].min(), ymax = weather_metadata['northing'].max(),
-                                input_weatherseries_path = '/home/users/azhar199/DATA/WG_Spatial/ThamesWG/WD', season_length = 'month', calculation_period = [2001,2020], wet_threshold = 0.2, 
+                                input_weatherseries_path = '/home/users/azhar199/DATA/WG_Spatial/ThamesWG_New/WDv2', season_length = 'month', calculation_period = [ALLDF[1]['1H']['Year'].min(),ALLDF[1]['1H']['Year'].max()], wet_threshold = 0.2, 
                                 use_neighbours = True, neighbour_radius = 20000, input_variables = IV, raw_statistics = None, simulation_variables = SV, completeness_threshold = 0, 
                                 n_years = {v: 0 for v in IV}, data_series = INPUT_WEATHER_SERIES_SPATIAL[0], base_seed = 58, point_id = np.unique(INPUT_WEATHER_SERIES_SPATIAL[0]['point_id']))
 
 TRANSFORMED_SERIES[0].rename(columns={'bc_mean': 'mean','bc_std': 'std'}, inplace=True)
 KEYS_off = TRANSFORMED_SERIES[3].keys()
-OFFSET_DF = pd.concat([pd.DataFrame([{'point_id':list(KEYS_off)[i][0],'variable':list(KEYS_off)[i][1],'season':list(KEYS_off)[i][2],'offset':TRANSFORMED_SERIES[3][list(KEYS_off)[i]]}]) for i in np.arange(0,len(KEYS_off),1)],axis=0).reset_index(drop=True)
-#OFFSET_DF['point_id']=np.tile(weather_metadata['point_id'], int(OFFSET_DF.shape[0]/weather_metadata.shape[0]))
+OFFSET_DF = pd.concat([pd.DataFrame([{'point_id':list(KEYS_off)[i][0],'variable':list(KEYS_off)[i][1],'season':list(KEYS_off)[i][2],'offset':TRANSFORMED_SERIES[3][list(KEYS_off)[i]]}]) 
+                       for i in np.arange(0,len(KEYS_off),1)],axis=0).reset_index(drop=True)
 
 
 REGRESSED_SERIES = do_regression(TRANSFORMED_SERIES,IV)
@@ -4689,11 +4685,55 @@ predictors = {('temp_avg', 'DDD'): ['temp_avg_lag1'],
         ('sun_dur', 'WW'): ['sun_dur_lag1', 'prcp', 'temp_avg', 'dtr']}
 
 
+RAINFALL_REALIZATIONS_PATH = '/home/users/azhar199/DATA/WG_Spatial/ThamesWG_New/REALIZATION_THAMES_POINT'
+Start_Time_Stamp = '1990-01-01 00:00:00'
+gauge_metadata = pd.read_csv('/home/users/azhar199/DATA/WG_Spatial/ThamesWG_New/fict_meta_thames.csv')
+
+RAINF =[]
+for i in gauge_metadata['point_id']:
+    STN = gauge_metadata.loc[gauge_metadata['point_id']==i, 'name'].iloc[0]
+    station_base = STN.replace('.csv', '')   
+    files = glob.glob(f"{RAINFALL_REALIZATIONS_PATH}/*.csv")
+    FILEPATH = [f for f in files if station_base in os.path.basename(f)]
+    STN_RF = [pd.read_csv(fp) for fp in FILEPATH]
+    RAINF.append(STN_RF)
+
+STN_RAIN =[]
+for i in np.arange(0,len(RAINF),1):
+    RAINFALL_REALIZATIONS=pd.concat(RAINF[i],axis=1)
+    RAINFALL_REALIZATIONS = RAINFALL_REALIZATIONS.copy()
+    RAINFALL_REALIZATIONS.columns = ['Realization_'+str(i) for i in np.arange(1,RAINFALL_REALIZATIONS.shape[1]+1,1)]
+    RAINFALL_REALIZATIONS.index = pd.period_range(start='1990-01-01 00:00:00', periods=RAINFALL_REALIZATIONS.shape[0] ,freq='H')
+    RAINFALL_REALIZATIONS['Year'] = RAINFALL_REALIZATIONS.index.year;RAINFALL_REALIZATIONS['Month'] = RAINFALL_REALIZATIONS.index.month
+    RAINFALL_REALIZATIONS['point_id'] = gauge_metadata['point_id'][i]
+    STN_RAIN.append(RAINFALL_REALIZATIONS)
+    
+STN_RAIN_DF = pd.concat(STN_RAIN,axis=0).reset_index(drop=True)
 
 
-[simulate_daily_weather_spatial(gauge_metadata = GMETA, RAINFALL_REALIZATIONS_PATH = '/home/users/azhar199/DATA/WG_Spatial/ThamesWG/REALIZATION_THAMES_POINT',
-                             year = 2014, month = i, n_realizations = 50, predictors = predictors, input_variables = ['temp_avg','dtr'], transitions = ['DDD', 'DD', 'DW', 'WD', 'WW'],
-                             seasons = list(range(1,13)), parameters = REGRESSED_SERIES[1], interpolated_parameters_spatial = INTPS, timestep = 1, output_types = ['point'], 
-                             n_points = {'point': 1}, transformations = transformations_fixed, transformed_statistics_dict = transformed_statistics_dict, 
-                             output_variables = ['point'], wet_threshold = 0.2, season_length = 'month', wind_height = 2, offset_df = OFFSET_DF, 
-                             point_id = 3, base_seed = 42, realization_counter = 45) for i in list(range(1,13))]
+
+
+def GET_WGEN_SIM(PID, REAL):
+    YRDF =[]
+    for b in np.arange(ALLDF[1]['1H']['Year'].min(),ALLDF[1]['1H']['Year'].max()+1,1):
+        SIM = [simulate_daily_weather_spatial(RAINFALL_REALIZATIONS = STN_RAIN_DF, year = b, month = i, n_realizations = n_realizations, predictors = predictors, input_variables = ['temp_avg','dtr'], 
+                                              transitions = ['DDD', 'DD', 'DW', 'WD', 'WW'],seasons = list(range(1,13)), parameters = REGRESSED_SERIES[1], interpolated_parameters_spatial = INTPS, 
+                                              timestep = 1, output_types = ['point'], n_points = {'point': 1}, transformations = transformations_fixed, transformed_statistics_dict = transformed_statistics_dict, 
+                                              output_variables = ['point'], wet_threshold = 0.2, season_length = 'month', wind_height = 2, offset_df = OFFSET_DF, point_id = PID, base_seed = 42,
+                                              realization_counter = REAL) for i in list(range(1,13))]
+        
+        temp = np.vstack([SIM[i][('point','temp_avg')][2:] for i in range(len(SIM))])
+        dtr  = np.vstack([SIM[i][('point','dtr')][2:] for i in range(len(SIM))])
+        date = pd.date_range(str(b)+'-01-01',str(b)+'-12-31',freq='D')
+        DATF = pd.DataFrame({'datetime': date,'tavg': temp.flatten(),'dtr': dtr.flatten()})
+        DATF['point_id'] = PID
+        YRDF.append(DATF)
+    
+    return pd.concat(YRDF,axis=0).reset_index(drop=True) 
+
+
+WSIM = []
+for u in np.arange(1,n_realizations,1):
+    print(u)
+    wsim = GET_WGEN_SIM(PID=1, REAL=u) 
+    WSIM.append(wsim)
