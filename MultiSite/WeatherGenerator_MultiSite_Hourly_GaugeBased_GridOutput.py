@@ -9,6 +9,7 @@ import statsmodels.api as sm
 from scipy import stats
 from scipy.optimize import differential_evolution
 import itertools
+from itertools import product
 import geocube.api.core
 import psutil
 from multiprocessing import Pool
@@ -24,6 +25,8 @@ import gstools
 import geocube
 import glob
 import re
+import matplotlib.pyplot as plt
+
 
 ####################################################################################
 # The set of functions that follow concern with preparation of spatial time series #
@@ -277,6 +280,7 @@ def clip_array(max_relative_difference, max_clips):
         y[y == clip_flag] = np.max(y)
         return y  # , clips
     return f
+
 
 #####################################################################################
 # The set of functions that follow concern with computation of reference statistics #
@@ -3328,6 +3332,9 @@ def transform_series(InputWeatherSeries,base_seed):
             transformations[(pool_id, variable, season, 'lamda')] = lamda
             offsetlist[(pool_id, variable, season, 'offset')] = offset
 
+        # if season == 7 and variable == 'temp_avg':
+        #     print("Lambda:", lamda)
+
         elif (df1.shape[0] > 0) and (variable == 'sun_dur'):
             # TODO: Keep track of min/max used in scaling? Or assume min=0 and max=fully sunny day?
             # Alternatively could calculate day length here and use this - may be the most accurate
@@ -3376,7 +3383,9 @@ def transform_series(InputWeatherSeries,base_seed):
     df1 = df.loc[df['transition'] != 'NA']
     df1 = df1.groupby(['pool_id', 'variable', 'season'])['bc_value'].agg(['mean', 'std'])  # , 'transition'
     df1.reset_index(inplace=True)
-
+    
+    
+    
     tmp1 = expand_grid(
         ['pool_id', 'variable', 'season'],  # , 'transition'
         df1['pool_id'].unique(), df1['variable'].unique(), df1['season'].unique()  # , df1['transition'].unique()
@@ -3390,12 +3399,14 @@ def transform_series(InputWeatherSeries,base_seed):
     df1['std'] = np.where(~np.isfinite(df1['std']), df1['tmp_std'], df1['std'])
     df1.drop(columns=['tmp_mean', 'tmp_std'], inplace=True)
     df1.rename(columns={'mean': 'bc_mean', 'std': 'bc_std'}, inplace=True)
+    
     #transformed_statistics = df1  # set by returning
 
     # Standardise time series
     # - keep series contiguous (i.e. using NA) to ensure that lag-1 value is identified correctly
     df = pd.merge(df, df1, how='left')
     df['sd_value'] = (df['bc_value'] - df['bc_mean']) / df['bc_std']
+    
     df['sd_lag1'] = df.groupby(['pool_id','variable', 'season'])['sd_value'].transform(shift_)
 
     # Wide dataframe containing standardised values and lag-1 standardised values for all variables
@@ -3546,6 +3557,7 @@ def do_regression(TRANSFORMED_SERIES,input_variables):
     seasons = np.unique(df2['season'])
     variables = input_variables.copy()
     outputs = [];parameters = {};residuals = {};r2 = {};standard_errors = {}
+    
     predictors = {
         ('temp_avg', 'DDD'): ['temp_avg_lag1'],
         ('temp_avg', 'DD'): ['temp_avg_lag1'],
@@ -3574,11 +3586,12 @@ def do_regression(TRANSFORMED_SERIES,input_variables):
         ('sun_dur', 'WW'): ['sun_dur_lag1', 'prcp', 'temp_avg', 'dtr'],
     }
     for pool_id, season, transition, variable in itertools.product(pool_ids, seasons, transitions, variables):
-
+        
         # Subset on relevant finite values - successively for dependent and then each independent variable
         df2a = df2.loc[
             (df2['pool_id'] == pool_id) & (df2['season'] == season) & (df2['transition'] == transition)
             & (np.isfinite(df2[variable]))]
+        
         for predictor in predictors[(variable, transition)]:
             df2a = df2a.loc[np.isfinite(df2a[predictor])]
 
@@ -3598,7 +3611,15 @@ def do_regression(TRANSFORMED_SERIES,input_variables):
             X = sm.add_constant(X)  # adds column of ones - required for intercept to be estimated
             model = sm.OLS(df2a[variable].values, X)
             results = model.fit()
-            parameters[(pool_id, season, variable, transition)] = results.params
+            
+            params = results.params.copy()
+            if variable in ['temp_avg', 'dtr']:
+                # lag coefficient is index 1 (index 0 is intercept)
+                if abs(params[1]) >= 0.99:
+                    params[1] = 0.99 * np.sign(params[1])
+            parameters[(pool_id, season, variable, transition)] = params
+
+            #parameters[(pool_id, season, variable, transition)] = results.params
             df2b = df2a[['datetime', 'pool_id', variable]].copy()
             df2b['residual'] = results.resid
             residuals[(pool_id, season, variable, transition)] = df2b
@@ -3953,18 +3974,15 @@ def make_idw_interpolator(df1, easting='easting', northing='northing', value='va
 
     return _interpolator
 
-def interpolate_parameters_space2(simulation_variables, seasons, statistics_variograms, output_types, dem,
-    discretisation_metadata, input_variables, transition_key,r2_variograms, se_variograms, point_elevation):
+def interpolate_parameters_space2(simulation_variables, seasons, statistics_variograms, output_types, dem, discretisation_metadata, input_variables, transition_key, r2_variograms, se_variograms,
+                                  point_elevation):
     
     def call_interpolator(interpolator, output_type):
         """
         Safe call: use ext_drift only if kriger was fitted with drift.
         """
         # Extract prediction coordinates
-        pos = (
-            discretisation_metadata[(output_type, 'x')],
-            discretisation_metadata[(output_type, 'y')]
-        )
+        pos = (discretisation_metadata[(output_type, 'x')],discretisation_metadata[(output_type, 'y')])
         
         # Check if kriger has drift trained
         cond_ext = getattr(interpolator, "_cond_ext_drift", None)
@@ -3974,12 +3992,10 @@ def interpolate_parameters_space2(simulation_variables, seasons, statistics_vari
             # Requires same shape as interpolator._cond_ext_drift
             drift = discretisation_metadata[(output_type, 'z')]
             drift = np.asarray(drift, dtype=float).reshape(-1, 1)
-            return interpolator(pos, mesh_type='unstructured',
-                                ext_drift=drift, return_var=False)
+            return interpolator(pos, mesh_type='unstructured',ext_drift=drift, return_var=False)
         else:
             # No drift allowed → call safely without ext_drift
-            return interpolator(pos, mesh_type='unstructured',
-                                return_var=False)
+            return interpolator(pos, mesh_type='unstructured',return_var=False)
 
     interpolated_parameters = {}
 
@@ -3993,6 +4009,9 @@ def interpolate_parameters_space2(simulation_variables, seasons, statistics_vari
                 values = call_interpolator(interpolator, output_type)
             else:  # IDW
                 values = interpolator((discretisation_metadata[(output_type, 'x')], discretisation_metadata[(output_type, 'y')]))
+            if statistic == 'std':
+                values = np.abs(values)          
+                values = np.maximum(values, 0.1) 
             interpolated_parameters[('raw_statistics', output_type, variable, season, statistic)] = values
 
     # -------------------------------------------------------------------------
@@ -4139,8 +4158,6 @@ def regressions(n_days, season_length, month, variable, sn_sample, ri, transitio
 
 
 
-
-
 def calculate_pet2(year, month,output_types,values,discretisation_metadata,n_points,latitude,wind_height):
 
     # Alternate version of calculate_pet which is not used currently but can be employed if user wishes to 
@@ -4196,6 +4213,8 @@ def calculate_pet2(year, month,output_types,values,discretisation_metadata,n_poi
         # Calculate ET0 [mm day-1]
         et0 = (((0.408 * dsvp * (netrad - shf)) + (psy * (900.0 / tavg) * ws2 * (svp - avp))) / (dsvp + (psy * (1.0 + (0.34 * ws2)))))
         return et0   
+
+
 
 def simulate_daily_weather_spatial(RAINFALL_REALIZATIONS, year, month, n_realizations, predictors, input_variables, transitions, seasons, parameters, interpolated_parameters_spatial, 
                                    timestep, output_types, n_points, transformations, transformed_statistics_dict, output_variables, wet_threshold, season_length, wind_height, offset_df, point_id,
@@ -4441,20 +4460,6 @@ def simulate_daily_weather_spatial(RAINFALL_REALIZATIONS, year, month, n_realiza
         #                   n_points = n_points, latitude = LATITUDE_DEGREES*np.pi/180, wind_height = wind_height)
         
     return values
-                                           
-
-def getDates(year,month,SIMLIST):
-    '''
-    SIMLIST is the output from simulate_daily_weather_spatial
-    '''
-    sd = pd.to_datetime(str(year)+'-'+str(month)+'-'+str(1))
-    datseq = pd.date_range(sd, periods=len(SIMLIST[0][('point','temp_avg')][2:]))
-    return datseq
-
-
-############# Starting from here we see the functions put to use from preparation of time series, generation of
-########## reference statistics, fitting the parameters and simulating the rainfall using the fitted parameters
-########## followed by preparing the spatial weather series, regression parameter estimation and simulation
 
 
 timeseries_folder = '/home/users/azhar199/DATA/WG_Spatial/ThamesWG_New/RF'
@@ -4506,7 +4511,10 @@ if __name__ == '__main__':
     # Combine the results
     parameters_df = pd.concat([res[0] for res in results], axis=0)
     fitted_stats = pd.concat([res[1] for res in results], axis=0)
-    
+
+# parameters_df, fitted_stats = fit_by_month(unique_months=unique_months, reference_statistics = reference_statistics, spatial_model=True, intensity_distribution='weibull', n_workers=1,
+#                               all_parameter_names = all_parameter_names, parameters_to_fit= parameters_to_fit, parameter_bounds = parameter_bounds, fixed_parameters = fixed_parameters, stage='final',
+#                               initial_parameters=None, use_pooling=False)
 
 parameters_df['season'] = np.nan
 parameters_df.columns = ['fit_stage', 'month', 'lamda', 'beta', 'rho', 'eta', 'gamma', 'theta','kappa', 'Converged', 'Objective_Function', 'Iterations','Function_Evaluations','intensity_distribution','season']
@@ -4558,11 +4566,11 @@ main_sim(spatial_model = True,intensity_distribution = 'weibull',output_types = 
          spatial_buffer_factor = 15, simulation_mode = 'no_shuffling',weather_model = None, max_dsl = 6,n_divisions = 8, do_reordering = True)
 
 # # Store outputs #
-# os.chdir('/home/users/azhar199/DATA/WG_Spatial/ThamesWG/GaugeDataThames_MOD')
+# os.chdir('/home/users/azhar199/DATA/WG_Spatial/ThamesWG_New/GaugeDataThames_MOD')
 # for i in ALLDF.keys():
 #     ALLDF[i]['1H'].to_csv(GMETA['name'][i-1]+str('_MOD.csv'))
 
-# os.chdir('/home/users/azhar199/DATA/WG_Spatial/ThamesWG')
+# os.chdir('/home/users/azhar199/DATA/WG_Spatial/ThamesWG_New')
 # reference_statistics.to_csv('reference_statistics_thames.csv',index = False)
 # parameters_df.to_csv('parameters_thames.csv',index = False)
 # fitted_stats.to_csv('fitted_stats_thames.csv',index = False)
@@ -4579,8 +4587,6 @@ INPUT_WEATHER_SERIES_SPATIAL = process_stations(n_points = {v: 0 for v in IV}, m
                                                 calculation_period = [ALLDF[1]['1H']['Year'].min(),ALLDF[1]['1H']['Year'].max()], wet_threshold=0.2, use_neighbours = True, neighbour_radius = 20000, 
                                                 input_variables = IV, raw_statistics = None, simulation_variables = SV, completeness_threshold = 0, n_years =  {v: 0 for v in IV}, data_series = None)
 
-
-
 TRANSFORMED_SERIES = preprocess(spatial_model = True, spatial_method = 'interpolate', n_points = {v: 0 for v in IV}, min_points = 5, max_buffer = 150, 
                                 weather_metadata = weather_metadata, xmin = weather_metadata['easting'].min(), xmax = weather_metadata['easting'].max(), 
                                 ymin = weather_metadata['northing'].min(), ymax = weather_metadata['northing'].max(),
@@ -4592,7 +4598,6 @@ TRANSFORMED_SERIES[0].rename(columns={'bc_mean': 'mean','bc_std': 'std'}, inplac
 KEYS_off = TRANSFORMED_SERIES[3].keys()
 OFFSET_DF = pd.concat([pd.DataFrame([{'point_id':list(KEYS_off)[i][0],'variable':list(KEYS_off)[i][1],'season':list(KEYS_off)[i][2],'offset':TRANSFORMED_SERIES[3][list(KEYS_off)[i]]}]) 
                        for i in np.arange(0,len(KEYS_off),1)],axis=0).reset_index(drop=True)
-
 
 REGRESSED_SERIES = do_regression(TRANSFORMED_SERIES,IV)
 
@@ -4646,15 +4651,17 @@ transformations_fixed = {
 }
 
 
-
-
 #noise_variograms = estimate_noise_variograms(InputWeatherSeries = INPUT_WEATHER_SERIES_SPATIAL,seasons = list(range(1,13)),input_variables = IV, weather_metadata = weather_metadata, min_points = 5)
 #residual_variograms = estimate_residual_variograms(InputWeatherSeries = INPUT_WEATHER_SERIES_SPATIAL,seasons = list(range(1,13)),input_variables = IV,residuals = REGRESSED_SERIES[2],weather_metadata = weather_metadata, min_points = 5)  
-statistic_variograms = estimate_statistic_variograms(raw_statistics = INPUT_WEATHER_SERIES_SPATIAL[1],weather_metadata = weather_metadata,seasons = list(range(1,13)),simulation_variables = ['temp_avg', 'dtr', 'vap_press', 'prcp'], min_points = 5)
+
+statistic_variograms = estimate_statistic_variograms(raw_statistics = INPUT_WEATHER_SERIES_SPATIAL[1], weather_metadata = weather_metadata, seasons = list(range(1,13)),
+                                                     simulation_variables = ['temp_avg', 'dtr', 'prcp'], min_points = 5)
+
 r2_variograms = estimate_r2_variograms(seasons = list(range(1,13)),input_variables = IV, weather_metadata = weather_metadata,r2 = REGRESSED_SERIES[3],min_points = 5)
+
 se_variograms = estimate_se_variograms(seasons = list(range(1,13)), input_variables = IV, weather_metadata = weather_metadata, standard_errors = REGRESSED_SERIES[4],min_points = 5)
 
-INTPS = interpolate_parameters_space2(simulation_variables = ['temp_avg', 'dtr', 'vap_press','prcp'], seasons = list(range(1,13)),statistics_variograms = statistic_variograms, 
+INTPS = interpolate_parameters_space2(simulation_variables = ['temp_avg', 'dtr','prcp'], seasons = list(range(1,13)),statistics_variograms = statistic_variograms, 
                                       output_types = ['point'], dem = None, discretisation_metadata = discretisation_metadata, input_variables = IV,
                                       transition_key = {1:'DDD',2:'DD',3:'DW',4:'WD',5:'WW'},r2_variograms = r2_variograms, se_variograms = se_variograms, point_elevation = True)
 
@@ -4687,11 +4694,11 @@ predictors = {('temp_avg', 'DDD'): ['temp_avg_lag1'],
 
 RAINFALL_REALIZATIONS_PATH = '/home/users/azhar199/DATA/WG_Spatial/ThamesWG_New/REALIZATION_THAMES_POINT'
 Start_Time_Stamp = '1990-01-01 00:00:00'
-gauge_metadata = pd.read_csv('/home/users/azhar199/DATA/WG_Spatial/ThamesWG_New/fict_meta_thames.csv')
+
 
 RAINF =[]
-for i in gauge_metadata['point_id']:
-    STN = gauge_metadata.loc[gauge_metadata['point_id']==i, 'name'].iloc[0]
+for i in GMETA['point_id']:
+    STN = GMETA.loc[GMETA['point_id']==i, 'name'].iloc[0]
     station_base = STN.replace('.csv', '')   
     files = glob.glob(f"{RAINFALL_REALIZATIONS_PATH}/*.csv")
     FILEPATH = [f for f in files if station_base in os.path.basename(f)]
@@ -4709,8 +4716,6 @@ for i in np.arange(0,len(RAINF),1):
     STN_RAIN.append(RAINFALL_REALIZATIONS)
     
 STN_RAIN_DF = pd.concat(STN_RAIN,axis=0).reset_index(drop=True)
-
-
 
 
 def GET_WGEN_SIM(PID, REAL):
@@ -4737,3 +4742,41 @@ for u in np.arange(1,n_realizations,1):
     print(u)
     wsim = GET_WGEN_SIM(PID=1, REAL=u) 
     WSIM.append(wsim)
+
+
+## Verify the outputs from the weather generator ##
+OBS_TEMP = INPUT_WEATHER_SERIES_SPATIAL[1][(INPUT_WEATHER_SERIES_SPATIAL[1]['variable'] == 'temp_avg') & (INPUT_WEATHER_SERIES_SPATIAL[1]['point_id'] == 1)].reset_index(drop=True)
+
+for i in np.arange(0,len(WSIM),1):
+    WSIM[i]['Month'] = WSIM[i]['datetime'].dt.month
+    WSIM[i]['Year'] = WSIM[i]['datetime'].dt.year
+
+ALLR =[]
+for i in np.arange(0,len(WSIM),1):
+    SINGR = (pd.DataFrame({'VAR': WSIM[i].groupby(['Year', 'Month'])['tavg'].mean()})).reset_index()
+    real_mean = SINGR.groupby('Month')['VAR'].agg(np.mean)
+    ALLR.append(real_mean)
+
+ALLR_DF = pd.concat(ALLR,axis=1)
+ALLR_DF.columns = ['R_'+ str(i) for i in np.arange(0,ALLR_DF.shape[1],1)]
+
+## Plotting begins ##
+months = np.arange(1, 13)
+obs = OBS_TEMP['mean'].values   
+plt.figure(figsize=(10,10))
+
+# Plot all realizations in grey
+for col in ALLR_DF.columns:
+    plt.plot(months, ALLR_DF[col].values, color='grey', alpha=0.3)
+
+# Plot observed in dark red
+plt.plot(months, obs, color='darkred', linewidth=2)
+# Plot mean of realizations in blue
+plt.plot(months, ALLR_DF.mean(axis=1), color='blue', linewidth=2)
+plt.xlabel("Month")
+plt.ylabel("Mean Temperature (°C)")
+plt.xticks(months)
+plt.title("Observed vs Weather Generator Realizations")
+plt.grid(alpha=0.2)
+
+plt.show()
