@@ -1,3 +1,5 @@
+## It is recommended to use High Performance computational resources when you are running this Python Script ##
+
 import os
 import numpy as np
 import pandas as pd
@@ -4780,3 +4782,4 @@ plt.title("Observed vs Weather Generator Realizations")
 plt.grid(alpha=0.2)
 
 plt.show()
+
