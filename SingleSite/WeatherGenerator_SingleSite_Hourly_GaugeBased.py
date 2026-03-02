@@ -2294,3 +2294,59 @@ plt.tight_layout()
 
 plt.show()
 
+
+## If hourly temperatures are need, use the function below ##
+def create_disaggregation_profiles(year, months, timestep):
+    
+    def is_leap_year(year):
+        return (year % 4 == 0 and year % 100 != 0) or (year % 400 == 0)
+    
+    if is_leap_year(year) == True:
+        month_lengths = {1: 31, 2: 29, 3: 31, 4: 30, 5: 31, 6: 30, 7: 31, 8: 31, 9: 30, 10: 31, 11: 30, 12: 31}
+    else:
+        month_lengths = {1: 31, 2: 28, 3: 31, 4: 30, 5: 31, 6: 30, 7: 31, 8: 31, 9: 30, 10: 31, 11: 30, 12: 31}
+        
+    temp_profiles = {}
+        
+    for month in months:
+        dt = min(timestep, 1.0)
+        # - each hour as proportion of range
+        # - offset puts max at 1500 and min at 0300 - hardcoded currently
+        # The model assumes:Temperature follows sinusoidal diurnal cycle.
+        nt = int(24 / dt)
+        x = np.arange(nt) * np.pi / (nt / 2.0)
+        y = np.sin(x)
+        y_norm = (y - np.min(y)) / (np.max(y) - np.min(y))
+        offset = int((3.0 + 6.0) / dt)  # +6 needed to enable 1500 max and 0300 min
+        temp_norm = np.zeros(y.shape)
+        temp_norm[offset:] = y_norm[:-offset]
+        temp_norm[:offset] = y_norm[-offset:]
+        
+        n_days = month_lengths[month]
+        temp_norm = np.tile(temp_norm, n_days)
+        temp_norm = np.expand_dims(temp_norm, 1)
+        temp_profiles[month] = temp_norm
+    
+    return temp_profiles
+
+
+TEMPMIN = pd.concat([pd.concat([RealTEMPmin[i][j] for i in range(len(RealTEMPmin))], axis=0) for j in range(12)],axis=0)
+DTR = pd.concat([pd.concat([YEARSIMS[i][j][1] for j in range(12)]) for i in range(len(YEARSIMS))])
+TEMPMIN_filled = TEMPMIN.copy()
+TEMPMIN_filled = TEMPMIN_filled.groupby([TEMPMIN_filled.index.year, TEMPMIN_filled.index.month]).transform(lambda x: x.fillna(x.mean()))
+DTR_filled = DTR.copy()
+DTR_filled = DTR_filled.groupby([DTR_filled.index.year, DTR_filled.index.month]).transform(lambda x: x.fillna(x.mean()))
+
+
+YEARS = np.unique(DTR.index.year)
+profiles = [create_disaggregation_profiles(i,np.arange(1,13,1),24) for i in YEARS]
+PROF_ALLYR = []
+for I in np.arange(0,len(profiles),1):
+    prof_year = np.concatenate([profiles[I][m] for m in range(1,13)],axis=0)
+    PROF_ALLYR.append(prof_year)
+
+DATF = pd.DataFrame({'TMIN':np.repeat(TEMPMIN_filled['R_1'], 24).reset_index(drop=True),'DTR':np.repeat(DTR_filled['R_1'], 24).reset_index(drop=True),'Profile':np.concatenate(PROF_ALLYR,axis=0).flatten()})
+DATF['HOURLY_TEMP'] = DATF['TMIN']+(DATF['Profile']*DATF['DTR'])	
+DATF['datetime'] = pd.date_range('1981-01-01 00:00:00','2060-12-31 23:00:00',freq='H')
+DATF = DATF.drop(['TMIN','DTR'],axis=1)
+
