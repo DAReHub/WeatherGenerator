@@ -18,6 +18,7 @@ import glob
 import matplotlib.pyplot as plt
 import calendar
 from matplotlib.lines import Line2D
+from matplotlib.gridspec import GridSpec
 
 
 ## Data/time series preparation stage begins from here ##
@@ -289,7 +290,7 @@ def GetMonthStats(ListofDFs,WET_THRESHOLD):
     STAT.loc[STAT['name'].str.contains('lag1'), 'lag'] = 1
     STAT.loc[STAT['name'].str.contains('probability_dry'), 'threshold'] = WET_THRESHOLD
     return STAT
-    
+
 
 ##  Getting reference statistics stage ends here and 
 ##  fitting stage begins from here 
@@ -1168,8 +1169,6 @@ def initialise_hourly_array(total_hours):
     return np.zeros((total_hours, 1), dtype=float)
 
 ##This marks the end of functions relevant to NSRP simulation stage. 
-
-
 ### Now we have completed time series preparation, reference statistics
 ### computation, parameter fitting and NSRP simulation phases for the rainfall data.
 ### Following this we shall load data on other weather variables to  
@@ -1956,13 +1955,12 @@ def getDates(year,month,SIMLIST):
     datseq = pd.date_range(sd, periods=len(SIMLIST[0][('point','temp_avg')][2:]))
     return datseq
 
-
 # Given that we are dealing with HadUK dataset which has 10432 grids (5 KM grid size),
 # a few additional steps are added
 # which include extracting data from the NetCDF files for a given grid
 # following that we begin the process of running the weather generator
 
-GRIDS = pd.read_csv('/home/users/DATA/HADUK/COMPGRID.csv')
+GRIDS = pd.read_csv('/home/users/DATA/HADUK/CSVF/COMPGRID.csv')
 
 def prepare_haduk_weatherseries(prcp_file_path,tmax_file_path,tmin_file_path,NUM):
     
@@ -1995,8 +1993,9 @@ def prepare_haduk_weatherseries(prcp_file_path,tmax_file_path,tmin_file_path,NUM
 daily_ws = prepare_haduk_weatherseries(prcp_file_path = '/home/users/DATA/HADUK/HADUK_RF',
                             tmax_file_path = '/home/users/DATA/HADUK/HADUK_TEMPMAX',
                             tmin_file_path = '/home/users/DATA/HADUK/HADUK_TEMPMIN',
-                            NUM = 2199)
+                            NUM = 7156)
 
+daily_ws = daily_ws[daily_ws['datetime'].dt.year.isin(np.arange(1991,2021,1))].reset_index(drop=True)
 dfb_daily = daily_ws[['datetime','prcp']]
 dfb_daily = dfb_daily.rename(columns={'prcp': 'value'})
 dfb_daily.index = dfb_daily['datetime']
@@ -2047,7 +2046,7 @@ for col in numeric_cols:
 
 
 n_realizations = 100
-n_years = 80
+n_years = 20
 base_seed = 45
 rng = np.random.default_rng(seed = base_seed)
 
@@ -2196,8 +2195,8 @@ def run_year(year):
     months = list(range(1, 13))
     return (year, [getMonthlySimulations(YearNumber=year,
                                          MonthNumber=m,
-                                         LATITUDE_DEGREES=GRIDS['Latitude'][2199],
-                                         LONGITUDE_DEGREES=GRIDS['Longitude'][2199],
+                                         LATITUDE_DEGREES=GRIDS['Latitude'][4175],
+                                         LONGITUDE_DEGREES=GRIDS['Longitude'][4175],
                                          point_elevation=78) for m in months])
 
 YEARS = np.unique(all_realizations_df['Year'])
@@ -2210,7 +2209,18 @@ with ProcessPoolExecutor(max_workers=12) as executor:
         YEARSIMS[list(YEARS).index(year)] = result
 
 
+
+TEMP_AVG = pd.concat([pd.concat([YEARSIMS[i][j][0] for i in range(len(YEARSIMS))], axis=0) for j in range(12)],axis=0)
+DTR = pd.concat([pd.concat([YEARSIMS[i][j][1] for j in range(12)]) for i in range(len(YEARSIMS))])
+TEMP_AVG_filled = TEMP_AVG.copy()
+TEMP_AVG_filled = TEMP_AVG_filled.groupby([TEMP_AVG_filled.index.year, TEMP_AVG_filled.index.month]).transform(lambda x: x.fillna(x.mean()))
+DTR_filled = DTR.copy()
+DTR_filled = DTR_filled.groupby([DTR_filled.index.year, DTR_filled.index.month]).transform(lambda x: x.fillna(x.mean()))
+TEMP_MIN = TEMP_AVG_filled - (0.5*DTR_filled)
+TEMP_MAX = TEMP_AVG_filled + (0.5*DTR_filled)
+
 OBS_TEMP = INPUT_WEATHER_SERIES[1][INPUT_WEATHER_SERIES[1]['variable'] == 'temp_avg']
+OBS_DTR = INPUT_WEATHER_SERIES[1][INPUT_WEATHER_SERIES[1]['variable'] == 'dtr']
 IWS = daily_ws
 IWS['Year'] = [pd.to_datetime(IWS['datetime'][i],format = '%Y-%m-%d').year for i in range(IWS.shape[0])]
 IWS['Month'] = [pd.to_datetime(IWS['datetime'][i],format = '%Y-%m-%d').month for i in range(IWS.shape[0])]
@@ -2218,70 +2228,138 @@ IWS2 = IWS[IWS['Year'].isin(np.arange(CP1,CP2+1,1))].reset_index(drop=True)
 OBS_TEMPMIN = IWS2.groupby(['Year','Month'])['temp_min'].agg(np.mean).groupby('Month').agg(np.mean)
 OBS_TEMPMAX = IWS2.groupby(['Year','Month'])['temp_max'].agg(np.mean).groupby('Month').agg(np.mean)
 
-def getAVGreal(NUM, startyear, endyear):
-    VAR_AVG = [pd.concat([YEARSIMS[i][j][NUM] for i in range(len(YEARSIMS))], axis=0) for j in range(12)]
-    VAR_AVG_DF = pd.concat(VAR_AVG, axis=0)
-    VAR_AVG_DF['Year'] = VAR_AVG_DF.index.year
-    VAR_AVG_DF2 = VAR_AVG_DF[VAR_AVG_DF['Year'].isin(np.arange(startyear, endyear, 1))].copy()
-    VAR_AVG_DF2['Month'] = VAR_AVG_DF2.index.month
-    REQ = VAR_AVG_DF2.columns[VAR_AVG_DF2.columns.str.contains('R_')]
-    FIN_VAL = []
-    for i in REQ:
-        YR_MONTH_MEAN_TEMP = pd.DataFrame({'VAR': VAR_AVG_DF2.groupby(['Year', 'Month'])[i].mean()})
-        fin_val = YR_MONTH_MEAN_TEMP.groupby('Month')['VAR'].mean()
-        FIN_VAL.append(fin_val)
-    FIN_VAL_DF = pd.concat(FIN_VAL, axis=1)
-    return np.mean(FIN_VAL_DF, axis=1)
+ANN_TMAX_THRES = np.quantile(daily_ws['temp_max'],0.9)
+OBS_YEARLY_TMAX = ((daily_ws['temp_max'] > ANN_TMAX_THRES).groupby(daily_ws['Year']).sum())
+OBS_MEAN_TMAX = OBS_YEARLY_TMAX.mean()
 
-tempreal = getAVGreal(0,CP1,CP2)
+ANN_TMIN_THRES = np.quantile(daily_ws['temp_min'],0.9)
+OBS_YEARLY_TMIN = ((daily_ws['temp_min'] > ANN_TMIN_THRES).groupby(daily_ws['Year']).sum())
+OBS_MEAN_TMIN = OBS_YEARLY_TMIN.mean()
+
+ANN_TMIN_COLD_THRES = np.quantile(daily_ws['temp_min'],0.1)
+OBS_YEARLY_TMIN_COLD = ((daily_ws['temp_min'] < ANN_TMIN_COLD_THRES).groupby(daily_ws['Year']).sum())
+OBS_MEAN_TMIN_COLD = OBS_YEARLY_TMIN_COLD.mean()
+
+REAL_HOT, REAL_WARM, REAL_COLD = [[] for w in range(3)]
+
+for col in TEMP_MAX.columns:
+    yearly = ((TEMP_MAX[col] > ANN_TMAX_THRES).groupby(TEMP_MAX.index.year).sum())
+    REAL_HOT.append(yearly.mean())
+
+for col in TEMP_MIN.columns:
+    yearly = ((TEMP_MIN[col] > ANN_TMIN_THRES).groupby(TEMP_MIN.index.year).sum())
+    REAL_WARM.append(yearly.mean())
+
+for col in TEMP_MIN.columns:
+    yearly = ((TEMP_MIN[col] < ANN_TMIN_COLD_THRES).groupby(TEMP_MIN.index.year).sum())
+    REAL_COLD.append(yearly.mean())
+
+REAL_HOT=np.array(REAL_HOT)
+REAL_WARM=np.array(REAL_WARM)
+REAL_COLD=np.array(REAL_COLD)
 
 
-RealTEMPmin = [[YEARSIMS[i][j][0]-0.5*YEARSIMS[i][j][1] for j in range(12) ] for i in range(len(YEARSIMS))]
-RealTEMPmax = [[YEARSIMS[i][j][0]+0.5*YEARSIMS[i][j][1] for j in range(12) ] for i in range(len(YEARSIMS))]
+HW = daily_ws.copy()
+HW['hot'] = HW['temp_max'] > ANN_TMAX_THRES
+HW = HW.sort_index()
 
-def getTempMinMax(DATAF,startyear,endyear):
-    flat_list = list(itertools.chain.from_iterable(DATAF))
-    combined_df = pd.concat(flat_list, axis=0)
-    combined_df['Year'] = combined_df.index.year
-    combined_df2 = combined_df[combined_df['Year'].isin(np.arange(startyear,endyear, 1))].copy()
-    combined_df2['Month'] = combined_df2.index.month
-    REQ = combined_df2.columns[combined_df2.columns.str.contains('R_')]
-    FIN_VAL = []
-    for i in REQ:
-        YR_MONTH_MEAN_TEMP = pd.DataFrame({'VAR': combined_df2.groupby(['Year', 'Month'])[i].mean()})
-        fin_val = YR_MONTH_MEAN_TEMP.groupby('Month')['VAR'].mean()
-        FIN_VAL.append(fin_val)
-    FIN_VAL_DF = pd.concat(FIN_VAL, axis=1)
-    return np.mean(FIN_VAL_DF, axis=1)
+HW['group'] = (HW.index.to_series().diff().dt.days.ne(1).cumsum())
+HW_hot = HW[HW['hot']].copy()
+HW_hot['group'] = (HW_hot.index.to_series().diff().dt.days.ne(1).cumsum())
+spells = (HW_hot.groupby('group').agg(start=('datetime','min'),end=('datetime','max'),duration=('datetime','count'),Year=('Year','first')))
+HWDI = spells[spells['duration'] >= 6]
+HWDI_YEAR = (HWDI.groupby('Year')['duration'].max())
+OBS_HWDI = HWDI_YEAR.mean()
 
-tempminreal = getTempMinMax(RealTEMPmin,CP1,CP2)
-tempmaxreal = getTempMinMax(RealTEMPmax,CP1,CP2)
 
-months = np.arange(1, 13)
+REAL_HWDI = []
+for col in TEMP_MAX.columns:
+    ts = TEMP_MAX[col]
+    thresh = ANN_TMAX_THRES   
+    hot = ts > thresh
+    df = pd.DataFrame({'temp': ts,'hot': hot})
+    df['Year'] = df.index.year
+    hot_df = df[df['hot']].copy()
+    hot_df['group'] = (hot_df.index.to_series().diff().dt.days.ne(1).cumsum())
+    spells = (hot_df.groupby('group').agg(duration=('temp','size'),Year=('Year','first')))
+    spells = spells[spells['duration'] >= 6]
+    yearly = (spells.groupby('Year')['duration'].max())
+    if len(yearly) == 0:
+        REAL_HWDI.append(0)
+    else:
+        REAL_HWDI.append(yearly.mean())
+
+REAL_HWDI = np.array(REAL_HWDI)
+
+
+months = np.arange(1,13)
 month_labels = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
-fig, axs = plt.subplots(1,3, figsize=(20,10))
-axs = axs.flatten()
 
-data = [
-    (tempreal, OBS_TEMP['mean'].values, "Mean Temperature", "°C"),
-    (tempminreal, OBS_TEMPMIN, "Min Temperature", "°C"),
-    (tempmaxreal, OBS_TEMPMAX, "Max Temperature", "°C")
-    
+plt.rcParams.update({'font.size':14})
+fig = plt.figure(figsize=(22,12))
+
+gs = GridSpec(2,3,figure=fig,height_ratios=[1,1.05])
+
+ax1 = fig.add_subplot(gs[0,0])
+ax2 = fig.add_subplot(gs[0,1])
+ax3 = fig.add_subplot(gs[0,2])
+ax4 = fig.add_subplot(gs[1,0])
+
+# make extreme indices span 2 columns
+ax5 = fig.add_subplot(gs[1,1:])
+axs = [ax1,ax2,ax3,ax4]
+
+
+
+temp_data = [
+    (TEMP_AVG_filled, OBS_TEMP['mean'].values, "Mean Temperature", "°C"),
+    (DTR_filled, OBS_DTR['mean'].values, "Daily Temperature Range", "°C"),
+    (TEMP_MIN, OBS_TEMPMIN.values, "Minimum Temperature", "°C"),
+    (TEMP_MAX, OBS_TEMPMAX.values, "Maximum Temperature", "°C")
 ]
-plt.rcParams.update({'font.size': 15})
 
-for ax, (real, obs, title, unit) in zip(axs, data):
-    ax.plot(months, real, '-x', color='blue', linewidth=2.2, label='Realizations')
-    ax.plot(months, obs, '-o', color='darkred', linewidth=1.8, label='Observed')
+letters = ['(a)','(b)','(c)','(d)','(e)']
+real_handle = Line2D([0],[0],color='grey',alpha=0.5,lw=2,label='Realizations')
+obs_handle = Line2D([0],[0],color='red',marker='o',lw=3,label='Observed')
+
+for i,(ax,(realR,obs,title,unit)) in enumerate(zip(axs,temp_data)):
+    realR = realR.copy()
+    realR.index = pd.to_datetime(realR.index)
+    monthly = realR.groupby(realR.index.month).mean()
+    for col in monthly.columns:
+        ax.plot(months,monthly[col],color='grey',alpha=0.25,linewidth=1)
+
+    ax.plot(months,obs,'-o',color='red',linewidth=3)
     ax.set_xticks(months)
-    ax.set_xticklabels(month_labels, rotation=0)
-    ax.set_title(title)
-    ax.set_xlabel("Month")
-    ax.set_ylabel(f"{title} ({unit})")
-    ax.grid(alpha=0.3)
-    ax.legend()
+    ax.set_xticklabels(month_labels)
+    ax.set_title(f'{letters[i]} {title}',fontweight='bold')
+    ax.set_ylabel(unit)
 
+    if i == 0:
+        ax.legend(handles=[real_handle,obs_handle],frameon=False)
+
+
+DATA = [REAL_HOT,REAL_WARM,REAL_COLD,REAL_HWDI]
+OBS = [OBS_MEAN_TMAX,OBS_MEAN_TMIN,OBS_MEAN_TMIN_COLD,OBS_HWDI]
+LABELS = ['Hot Days', 'Warm Nights', 'Cold Nights','HWDI']
+DATA = [np.array(x)[~np.isnan(x)] for x in DATA]
+
+bp = ax5.boxplot(DATA,patch_artist=True,widths=0.55)
+for box in bp['boxes']:
+    box.set(facecolor='white',alpha=0.7)
+
+for i,(vals,obs) in enumerate(zip(DATA,OBS),start=1):
+    ax5.scatter(i,np.mean(vals),color='blue',s=140,zorder=10)
+    ax5.scatter(i,obs,marker='x',s=220,linewidth=3,color='red',zorder=11)
+
+ax5.set_xticklabels(LABELS,fontsize=14,fontweight='bold')
+ax5.set_ylabel('Annual Count / Duration (days)',fontweight='bold')
+ax5.set_title('(e) Temperature Extreme Indices',fontweight='bold')
+ax5.scatter([],[],color='blue',s=120,label='Mean of Realizations')
+ax5.scatter([],[],marker='x',color='red',s=180,label='Observed')
+ax5.legend(frameon=False,loc='upper right')
+
+plt.suptitle('Temperature Evaluation',fontsize=22,fontweight='bold',y=0.98)
 plt.tight_layout()
+# plt.savefig('Temperature_Evaluation_Extremes.png',dpi=300,bbox_inches='tight')
 plt.show()
-
-
