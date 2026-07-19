@@ -1,0 +1,22 @@
+import os
+import numpy as np
+import pandas as pd
+import xarray as xr
+import glob
+
+
+os.chdir(r'C:\\XB_RADAR\\data\\2021')
+fname = glob.glob('*.nc')
+outdir = r"C:\\XB_RADAR\\data\\ZARR_XBD"
+#os.makedirs(outdir, exist_ok=True)
+
+for q in np.arange(0,len(fname),1):
+	outpath = os.path.join(outdir,os.path.basename(fname[q]).replace(".nc", ".zarr"))
+	DAT = xr.open_dataset(fname[q])
+	GRIDS = pd.read_csv(r'C:\XB_RADAR\data\LANDGRIDS_XB_RADAR.csv')
+	row_idx = GRIDS['Row_LAT'].values
+	col_idx = GRIDS['Column_LON'].values
+	rain = DAT['classification'].values[:,row_idx,col_idx]
+	DS_OUT = xr.Dataset({'classification': (('time', 'grid'),rain)},coords={'time': DAT['time'].values,'grid': np.arange(len(GRIDS)),'easting': ('grid', GRIDS['Easting'].values),'northing': ('grid', GRIDS['northing'].values),'row_index': ('grid', row_idx),'col_index': ('grid', col_idx)})
+	DS_OUT.to_zarr(outpath,mode='w',consolidated=False)
+
