@@ -16,6 +16,5 @@ The output from the weather generator (WG) looks as seen below for a site named 
 <img width="11882" height="5885" alt="Shawbury" src="https://github.com/user-attachments/assets/eab341da-9267-4cee-8ee6-6213b46f57f6" />
 <img width="11851" height="5851" alt="Shawbury_WG" src="https://github.com/user-attachments/assets/e0f74d53-2c78-4799-beca-c2342f8b5f0d" />
 
-Status
-
-The scripts will be consolidated to a python package soon and users are welcome to reach out to me with any questions.
+# Status
+While these scripts are a straight forward implementation of the framework mentioned above, efforts will be directed in the future to consolidate these scripts to a python package.
