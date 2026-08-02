@@ -6,7 +6,7 @@ The weather generator repository contains python scripts to generate stochastic 
 
 These scripts are straightforward to run, the **BaseScripts** folder contains the essential python scripts for single-site and multi-site simulations which generate stochastic simulations of rainfall and temperature followed by diagnosis of the simulations. Using these scripts as the base the Neyman-Scott Rectangular Pulse (NSRP) rainfall model parameters and regression parameters for temperature are derived for the future periods 2041 - 2060 and 2061 - 2080 using change factors from UK Climate Projections 2018 (UKCP18) ensemble members. Thereby a parameter dataset is formulated to derive projections of future climate and the corresponding scripts for that purpose are provided in **ParameterComputationScripts** folder. 
 
-Through these scripts as the background a web-based visualization tool is built, al-together a successor to the UKCP09 Weather generator is established which uses UKCP18 projections
+Through these scripts as the background a web-based visualization tool is built, al-together a successor to the UKCP09 Weather generator is established which uses the updated UKCP18 projections.
 
 # Components of the WG
 
@@ -25,7 +25,7 @@ While these scripts are a straight forward implementation of the framework menti
 This work is supported by funding grants from - [National Hub for Decarbonised, Adaptable, and Resilient Transport Infrastructures](url) and [Climate Co-Centre](url)
 
 # References
-These scripts are built upon two foundational works given below. The current work here uses the established framework in deriving parameter datasets to generate future climate projections
+These scripts are built upon two foundational works given below. The current work here uses the established framework in deriving parameter datasets to generate future climate projections.
 
 1. Kilsby, C.G., Jones, P.D., Burton, A., Ford, A.C., Fowler, H.J., Harpham, C., James, P., Smith, A. and Wilby, R.L., 2007. A daily weather generator for use in climate change studies. Environmental Modelling & Software, 22(12), pp.1705-1719. https://doi.org/10.1016/j.envsoft.2007.02.005
 2. Burton, A., Kilsby, C.G., Fowler, H.J., Cowpertwait, P.S.P. and O'connell, P.E., 2008. RainSim: A spatial–temporal stochastic rainfall modelling system. Environmental Modelling & Software, 23(12), pp.1356-1369. https://doi.org/10.1016/j.envsoft.2008.04.003
