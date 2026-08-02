@@ -23,6 +23,7 @@ While these scripts are a straight forward implementation of the framework menti
 This work is supported by funding grants from - [National Hub for Decarbonised, Adaptable, and Resilient Transport Infrastructures](url) and [Climate Co-Centre](url)
 
 # References
-These scripts are built upon two foundational works given below. The current work here uses the established framework in deriving parameter datasets to generate future climate projections.
+These scripts are built upon two foundational works given below. The current work here uses the established framework in deriving parameter datasets to generate future climate projections
+
 1. Kilsby, C.G., Jones, P.D., Burton, A., Ford, A.C., Fowler, H.J., Harpham, C., James, P., Smith, A. and Wilby, R.L., 2007. A daily weather generator for use in climate change studies. Environmental Modelling & Software, 22(12), pp.1705-1719. https://doi.org/10.1016/j.envsoft.2007.02.005
 2. Burton, A., Kilsby, C.G., Fowler, H.J., Cowpertwait, P.S.P. and O'connell, P.E., 2008. RainSim: A spatial–temporal stochastic rainfall modelling system. Environmental Modelling & Software, 23(12), pp.1356-1369. https://doi.org/10.1016/j.envsoft.2008.04.003
