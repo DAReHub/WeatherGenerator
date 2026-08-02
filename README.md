@@ -18,3 +18,6 @@ The output from the weather generator (WG) looks as seen below for a site named 
 
 # Status
 While these scripts are a straight forward implementation of the framework mentioned above, efforts will be directed in the future to consolidate these scripts to a python package.
+
+# Acknowledgements
+This work is supported by funding grants from - [National Hub for Decarbonised, Adaptable, and Resilient Transport Infrastructures](url) and [Climate Co-Centre](url).
