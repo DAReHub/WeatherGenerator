@@ -1,7 +1,6 @@
 Welcome to the DARe Hub and Climate Co-Centre weather generator repository !
 
-
-The python scripts provided here are single-site and multi-site formulations of the weather generator. This weather generator simulates synthetic time series of rainfall, mean, minimum and maximum temperatures, wind speed, vapour pressure and sunshine duration at daily and hourly temporal scales. The input datasets used in this study are derived from a few sources which include - [Gauge based measurements]([url](https://catalogue.ceh.ac.uk/datastore/eidchub/44c577d3-665f-40de-adce-74ecad7b304a/historical_hourly-rainfall/)), Gridded data sets such as [HadUK]([url](https://www.metoffice.gov.uk/research/climate/maps-and-data/data/haduk-grid/overview)) and [CEH-GEAR]([url](https://catalogue.ceh.ac.uk/documents/fc9423d6-3d54-467f-bb2b-fc7357a3941f)). 
+The weather generator repository contains python scripts to generate stochastic single-site and multi-site simulations of rainfall and single-site simulations for temperature. The python scripts presented here are drawn from - https://rwgen1.github.io/rwgen/html/index.html. It is to be noted that this weather generator also simulates variables such as wind speed, vapour pressure and sunshine duration at daily and hourly temporal scales conditional of data availability of those variables. The input data to run these scripts are provided for single-site simulations, however for multi-site simulations data shall be provided upon request. 
 
 A documentation is provided on how to use these python scripts along with some example data to run these scripts.
 
