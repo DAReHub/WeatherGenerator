@@ -1,1 +1,1 @@
-
+We have provided weather data for single sites Shawbury and Heathrow. For Shawbury Site the variables rainfall (1-hour resolution) and other weather variables  - minimum, maximum and average temperatures, vapour pressure, wind speed and sunshine duration at daily resolution are additionally provided. Whereas for Heathrow site only 1-hour rainfall is provided. Multi-site rainfall outputs will be provided to the user upon reasonable request.
