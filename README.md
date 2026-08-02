@@ -1,3 +1,5 @@
+Prelude
+
 Welcome to the DARe Hub and Climate Co-Centre weather generator repository !
 
 The weather generator repository contains python scripts to generate stochastic single-site and multi-site simulations of rainfall and single-site simulations for temperature. The python scripts presented here are drawn from - https://rwgen1.github.io/rwgen/html/index.html and are modified as per the need. It is to be noted that this weather generator also simulates variables such as wind speed, vapour pressure and sunshine duration at daily and hourly temporal scales conditional on data availability of those variables. The input data to run these scripts are provided for single-site simulations, however for multi-site simulations data shall be provided upon request. 
