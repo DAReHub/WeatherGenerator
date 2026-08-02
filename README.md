@@ -8,9 +8,7 @@ These scripts are straightforward to run, the **BaseScripts** folder contains th
 
 Through these scripts as the background a web-based visualization tool is built, altogether a successor to the UKCP09 Weather generator is established which uses the updated UKCP18 projections.
 
-# Components of the WG
-
-This WG has two components, first being the rainfall generator based on NSRP model and the second being the non-rainfall variable generator. The linkage between these two components is established via transition states of rainfall. The schematic below gives a brief overview of the WG.
+This WG has two components, first of them is the rainfall generator based on NSRP model and the second, a non-rainfall variable generator. The linkage between these two components is established via transition states of rainfall through regression-based relationships. The schematic below gives a brief overview of the WG.
 
 <img width="521" height="266" alt="image" src="https://github.com/user-attachments/assets/5c06bd27-6d38-481a-a5df-22109904c3bc" />
 
