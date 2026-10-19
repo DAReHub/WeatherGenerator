@@ -3,7 +3,7 @@ import argparse
 import yaml
 from pathlib import Path
 import pandas as pd
-import rainfall_daily
+import rainfall
 import temperature
 
 parser = argparse.ArgumentParser()
@@ -65,15 +65,17 @@ def main():
         try:
             print(f"Processing {easting}, {northing}: Rainfall")
             processing_start_time = time.time()
-            rainfall_reals = rainfall_daily.GetRealizations(
+            rainfall_reals = rainfall.GetRealizations(
                 parameters=rainfall_parameters,
                 n_realizations=realisations,
                 RealizationStartYear=start_year,
+                temp_resolution=temp_resolution,
                 EASTING=easting,
                 NORTHING=northing,
                 n_years=period,
                 base_seed=seed,
             )
+            print(rainfall_reals)
             # save rainfall
 
             if "TEMPERATURE" in variables:
@@ -127,6 +129,7 @@ def main():
                     },
                     workers=workers
                 )
+                print(temperature_reals)
                 # save temperature
 
             if "WIND" in variables:

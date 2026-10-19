@@ -1,11 +1,6 @@
 import pandas as pd
 import numpy as np
-import warnings
-
-warnings.simplefilter(action='ignore', category=FutureWarning)
-import scipy.stats
-import scipy.special
-
+import scipy
 
 def simulate_storms(month_lengths, simulation_length, parameters, rng):
     simulation_end_time = np.cumsum(month_lengths)[-1]
@@ -22,8 +17,7 @@ def simulate_storms(month_lengths, simulation_length, parameters, rng):
     expected_number_of_storms = cumulative_expected_storms[-1]
     number_of_storms = rng.poisson(expected_number_of_storms)
 
-    deformed_arrivals = expected_number_of_storms * np.sort(
-        rng.uniform(size=number_of_storms))
+    deformed_arrivals = expected_number_of_storms * np.sort(rng.uniform(size=number_of_storms))
     cumulative_expected_storms = np.insert(cumulative_expected_storms, 0, 0.0)
     cumulative_month_endtimes = np.insert(cumulative_month_endtimes, 0, 0.0)
     interpolator = scipy.interpolate.interp1d(
@@ -31,8 +25,7 @@ def simulate_storms(month_lengths, simulation_length, parameters, rng):
     )
     storm_arrival_times = interpolator(deformed_arrivals)
 
-    storm_arrival_times = storm_arrival_times[
-        storm_arrival_times < simulation_end_time]
+    storm_arrival_times = storm_arrival_times[storm_arrival_times < simulation_end_time]
     number_of_storms = storm_arrival_times.shape[0]
     storms = pd.DataFrame({
         'storm_id': np.arange(number_of_storms),
@@ -42,13 +35,11 @@ def simulate_storms(month_lengths, simulation_length, parameters, rng):
                                     storms['storm_arrival'].values)
     return storms, number_of_storms
 
-
 def lookup_months(month_lengths, period_length, times):
     end_times = np.cumsum(month_lengths)
     repeated_months = np.tile(np.arange(1, 13, dtype=int), period_length)
     idx = np.digitize(times, end_times)
     return repeated_months[idx]
-
 
 def simulate_raincells_point(storms, parameters, rng):
     tmp = pd.merge(storms, parameters, how='left', on='month')
@@ -67,7 +58,6 @@ def simulate_raincells_point(storms, parameters, rng):
         'month': storm_months
     })
 
-
 def make_storm_arrays_by_raincell(num_cells, storm_ids, storm_arrivals,
                                   storm_months):
     return (
@@ -76,7 +66,60 @@ def make_storm_arrays_by_raincell(num_cells, storm_ids, storm_arrivals,
         np.repeat(storm_months, num_cells)
     )
 
+class Hourly:
+    def merge_parameters(df, month_lengths, simulation_length, parameters):
+        df['month'] = lookup_months(month_lengths, simulation_length, df['storm_arrival'].values)
+        parameters_subset = parameters.drop(
+            ['fit_stage', 'converged', 'objective_function',
+             'iterations', 'function_evaluations'],
+            axis=1, errors='ignore'
+        )
+        return pd.merge(df, parameters_subset, how='left', on='month')
 
+    def initialise_discrete_rainfall_arrays_point(n_timesteps):
+        """
+        Create zero-filled array for point rainfall output.
+
+        Args:
+            n_timesteps (int): Total number of timesteps in the simulation.
+
+        Returns:
+            dict: {'point': np.ndarray of shape (n_timesteps, 1)}
+        """
+        return {'point': np.zeros((n_timesteps, 1))}
+
+    def get_storm_depths_point(df):
+        """
+        Summarise storm total depth and duration from raincell dataframe.
+
+        Args:
+            df (pd.DataFrame): NSRP raincell output with columns:
+                ['storm_id', 'storm_arrival', 'month', 'raincell_duration', 'raincell_intensity', 'raincell_end']
+
+        Returns:
+            pd.DataFrame: Storm-level statistics.
+        """
+        df['raincell_depth'] = df['raincell_duration'] * df[
+            'raincell_intensity']
+
+        storm_stats = df.groupby(['storm_id']).agg({
+            'storm_arrival': 'min',
+            'month': 'min',
+            'raincell_depth': 'sum',
+            'raincell_end': 'max'
+        }).reset_index()
+
+        storm_stats.rename(columns={'raincell_depth': 'storm_depth',
+                                    'raincell_end': 'storm_end'}, inplace=True)
+        storm_stats['storm_duration'] = storm_stats['storm_end'] - storm_stats[
+            'storm_arrival']
+        storm_stats.drop(columns=['storm_end'], inplace=True)
+
+        return storm_stats
+
+    def initialise_hourly_array(total_hours):
+        # One column for point model, all zeros initially
+        return np.zeros((total_hours, 1), dtype=float)
 
 def main_point_model_monthly(
         parameters,
@@ -118,8 +161,7 @@ def main_point_model_monthly(
     df = pd.merge(df, parameters, how='left', on='month')
 
     # Step 3 - Raincell arrival times
-    raincell_arrival_times = rng.exponential(
-        1.0 / df['beta'])  # relative to storm origin
+    raincell_arrival_times = rng.exponential(1.0 / df['beta'])  # relative to storm origin
     df['raincell_arrival'] = df['storm_arrival'] + raincell_arrival_times
 
     # Step 4 - Raincell durations
@@ -144,7 +186,6 @@ def main_point_model_monthly(
             inplace=True, errors='ignore')
 
     return df
-
 
 def discretise_point(
         period_start_time,
@@ -189,111 +230,114 @@ def discretise_point(
                 discrete_rainfall[
                     timestep, 0] += rc_intensity * timestep_coverage
 
+def discretise_by_point_monthly(df_raincells, simulation_length_years, STARTYR, timestep_length=1.0):
+    # Days in each calendar month over the simulation period
+    month_starts = pd.date_range(start=f"{STARTYR}-01-01",
+                                 periods=simulation_length_years * 12,
+                                 freq="MS")
+    hours_per_month = month_starts.days_in_month.to_numpy() * 24.0
 
+    # Timesteps per month, checking the timestep divides each month exactly
+    timesteps_float = hours_per_month / timestep_length
+    timesteps_per_month = np.rint(timesteps_float).astype(int)
+    if not np.allclose(timesteps_float, timesteps_per_month):
+        raise ValueError(
+            f"timestep_length={timestep_length} h does not divide every "
+            f"month's length in hours evenly."
+        )
 
-def discretise_by_point_monthly(df_raincells, simulation_length_years, STARTYR,
-                                timestep_length=24.0):
-    # Input: timestep_length in hours (default 24 -> produce daily totals)
-    Start = pd.to_datetime(str(STARTYR) + str('-01-01 00:00:00'),
-                           format='%Y-%m-%d %H:%M:%S')
-    End = pd.to_datetime(
-        str(STARTYR + simulation_length_years - 1) + str('-12-31 23:00:00'),
-        format='%Y-%m-%d %H:%M:%S')
-    DatesVect = pd.date_range(start=Start, end=End, freq="D")
-    monthly_df = pd.DataFrame(
-        {'Year': DatesVect.year, 'Month': DatesVect.month})
-    HRCOUNT = monthly_df.groupby(['Year', 'Month']).size().reset_index(
-        name='n_days')
-    month_days = HRCOUNT['n_days'].to_numpy()
+    discrete_rainfall = np.zeros((timesteps_per_month.sum(), 1))
 
-    # number of timesteps per month given timestep_length (hours)
-    timesteps_per_month = (month_days * 24 / timestep_length).astype(
-        int)  # usually days if timestep_length==24
-    total_timesteps = timesteps_per_month.sum()
-
-    # Create discrete output at the requested timestep resolution
-    discrete_rainfall = np.zeros((total_timesteps, 1))
-
-    # Loop months and use hours-based start/end for mask
-    start_ts = 0
     start_hour = 0.0
-    for m_idx, days_in_month in enumerate(month_days):
-        hours_in_month = days_in_month * 24.0
+    start_ts = 0
+    for hours_in_month, n_ts in zip(hours_per_month, timesteps_per_month):
         end_hour = start_hour + hours_in_month
-        end_ts = start_ts + timesteps_per_month[m_idx]
+        end_ts = start_ts + n_ts
 
-        # mask must compare hours to hours
-        mask = ((df_raincells['raincell_arrival'] < end_hour) & (
-                    df_raincells['raincell_end'] > start_hour))
+        # Raincells overlapping this month
+        mask = ((df_raincells['raincell_arrival'] < end_hour) &
+                (df_raincells['raincell_end'] > start_hour))
         raincells_month = df_raincells.loc[mask]
 
-        # slice the output array corresponding to this month (timesteps, 1)
+        # Writes into a view of the output array, so no return value is needed
         discretise_point(
             period_start_time=start_hour,
             timestep_length=timestep_length,
             raincell_arrival_times=raincells_month['raincell_arrival'].values,
             raincell_end_times=raincells_month['raincell_end'].values,
             raincell_intensities=raincells_month['raincell_intensity'].values,
-            discrete_rainfall=discrete_rainfall[start_ts:end_ts]
+            discrete_rainfall=discrete_rainfall[start_ts:end_ts],
         )
 
-        # advance
         start_hour = end_hour
         start_ts = end_ts
 
     return discrete_rainfall
 
-
 def GetRealizations(
         parameters: pd.DataFrame,
         n_realizations: int,
-        EASTING: int,
-        NORTHING: int,
         RealizationStartYear: int,
-        n_years: int,
-        base_seed: int
+        temp_resolution: str = "DAILY",
+        n_years: int = 20,
+        base_seed: int = 42,
+        EASTING: int = None,
+        NORTHING: int = None,
 ):
-    rng = np.random.default_rng(seed=base_seed)
-    parameters_df = parameters[(parameters['easting'] == EASTING) & (
-                parameters['northing'] == NORTHING)].reset_index(drop=True)
+    if temp_resolution == "DAILY":
+        freq, timestep_length = "D", 24.0
+    elif temp_resolution == "HOURLY":
+        freq, timestep_length = "h", 1.0
+    else:
+        raise ValueError(
+            f"temp_resolution must be 'DAILY' or 'HOURLY', got {temp_resolution!r}"
+        )
 
-    def GetMonthLengths2(NUM, START):
-        n_years = NUM
-        Start = pd.to_datetime(str(START) + str('-01-01'), format='%Y-%m-%d')
-        End = pd.to_datetime(str(START + n_years - 1) + str('-12-31'),
-                             format='%Y-%m-%d')
-        DatesVect = pd.date_range(start=Start, end=End, freq="D")
-        monthly_df = pd.DataFrame(
-            {'Year': DatesVect.year, 'Month': DatesVect.month})
-        HRCOUNT = monthly_df.groupby(['Year', 'Month']).size().reset_index(
-            name='n_hours')
-        return DatesVect, HRCOUNT['n_hours'].to_numpy()
+    # Optional location filter (daily version filtered; hourly was pre-filtered)
+    if EASTING is not None and NORTHING is not None:
+        parameters_df = parameters[
+            (parameters['easting'] == EASTING) &
+            (parameters['northing'] == NORTHING)
+        ].reset_index(drop=True)
+        if parameters_df.empty:
+            raise ValueError(
+                f"No parameters found for EASTING={EASTING}, NORTHING={NORTHING}"
+            )
+    else:
+        parameters_df = parameters
 
-    month_lengths_array = GetMonthLengths2(n_years, RealizationStartYear)[
-                              1] * 24
+    # Month lengths in hours (same for both resolutions) and the date vector
+    month_starts = pd.date_range(start=f"{RealizationStartYear}-01-01",
+                                 periods=n_years * 12, freq="MS")
+    month_lengths_array = month_starts.days_in_month.to_numpy() * 24
+
+    dates = pd.date_range(start=f"{RealizationStartYear}-01-01 00:00:00",
+                          end=f"{RealizationStartYear + n_years - 1}-12-31 23:00:00",
+                          freq=freq)
+
     realizations = []
-
     for i in range(n_realizations):
         rng = np.random.default_rng(seed=base_seed + i)
-        sim_df = main_point_model_monthly(parameters=parameters_df,
-                                          simulation_length=n_years,
-                                          month_lengths=month_lengths_array,
-                                          intensity_distribution='weibull',
-                                          rng=rng)
-        HR = discretise_by_point_monthly(sim_df,
-                                         simulation_length_years=n_years,
-                                         STARTYR=RealizationStartYear,
-                                         timestep_length=24)
-        HR_df = pd.DataFrame(HR, columns=['rainfall'])
-        realizations.append(HR_df)
+        sim_df = main_point_model_monthly(
+            parameters=parameters_df,
+            simulation_length=n_years,
+            month_lengths=month_lengths_array,
+            intensity_distribution='weibull',
+            rng=rng,
+        )
+        rainfall = discretise_by_point_monthly(
+            sim_df,
+            simulation_length_years=n_years,
+            STARTYR=RealizationStartYear,
+            timestep_length=timestep_length,
+        )
+        realizations.append(pd.DataFrame(rainfall, columns=['rainfall']))
 
     all_realizations_df = pd.concat(realizations, ignore_index=True, axis=1)
-    all_realizations_df.columns = ['Realization' + '_' + str(i + 1) for i in
-                                   range(n_realizations)]
-    all_realizations_df['DateTime'] = \
-    GetMonthLengths2(n_years, RealizationStartYear)[0]
-    all_realizations_df['Year'] = [all_realizations_df['DateTime'][i].year for i
-                                   in range(all_realizations_df.shape[0])]
-    all_realizations_df['Month'] = [all_realizations_df['DateTime'][i].month for
-                                    i in range(all_realizations_df.shape[0])]
-    return all_realizations_df
+    all_realizations_df.columns = [f'Realization_{i + 1}'
+                                   for i in range(n_realizations)]
+
+    extra = pd.DataFrame({'DateTime': dates,
+                          'Year': dates.year,
+                          'Month': dates.month})
+    return pd.concat([all_realizations_df, extra], axis=1)

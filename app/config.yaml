@@ -16,7 +16,6 @@ spatial:
   coordinates: # [easting, northing], add/remove from this list as necessary. Don't include any empty items.
     - [ 337500, 552500 ]
     - [ 337550, 552550 ]
-    -
 
 processing:
   realisations: 100
