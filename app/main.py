@@ -3,8 +3,9 @@ import argparse
 import yaml
 from pathlib import Path
 import pandas as pd
-import rainfall
-import temperature
+from datetime import datetime
+from app.WeatherVariables import rainfall
+from app.WeatherVariables import temperature
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -19,6 +20,12 @@ def load_config(path):
         config = yaml.safe_load(f)
         print("[config] loaded: ", config)
         return config
+
+def create_output_dir(dir):
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    run_directory = dir / timestamp
+    run_directory.mkdir(parents=True, exist_ok=True)
+    return run_directory
 
 def main():
     start_time = time.time()
@@ -56,6 +63,8 @@ def main():
     params_base_name = f"{grid_size}KM_{start_year}_{end_year}_{model}_{temp_resolution}.parquet"
     rainfall_parameters = pd.read_parquet(IWS_path / f"RAINFALL_{params_base_name}")
 
+    run_directory = create_output_dir(output_directory)
+
     states = {}
 
     for coods in coordinates:
@@ -75,8 +84,9 @@ def main():
                 n_years=period,
                 base_seed=seed,
             )
-            # print(rainfall_reals)
-            # save rainfall
+            rainfall_reals.to_csv(
+                run_directory / f"E{easting}_N{northing}_rainfall.csv",
+                index=False)
 
             if "TEMPERATURE" in variables:
                 print(f"Processing Easting {easting}, Northing {northing}: Temperature")
@@ -88,7 +98,7 @@ def main():
                 transtat = pd.read_parquet(transformed_statistics_path)
                 offset = pd.read_parquet(offset_path)
 
-                temperature_reals = temperature.process_temperature(
+                TEMP_AVG_filled, TEMP_MIN, TEMP_MAX = temperature.process_temperature(
                     all_realizations_df=rainfall_reals,
                     realisation_count=realisations,
                     IWS=IWS,
@@ -129,8 +139,15 @@ def main():
                     },
                     workers=workers
                 )
-                # print(temperature_reals)
-                # save temperature
+                TEMP_AVG_filled.to_csv(
+                    run_directory / f"E{easting}_N{northing}_temperature_average_filled.csv",
+                    index=False)
+                TEMP_MIN.to_csv(
+                    run_directory / f"E{easting}_N{northing}_temperature_min.csv",
+                    index=False)
+                TEMP_MAX.to_csv(
+                    run_directory / f"E{easting}_N{northing}_temperature_max.csv",
+                    index=False)
 
             if "WIND" in variables:
                 pass

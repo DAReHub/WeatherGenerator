@@ -1,7 +1,7 @@
 paths:
   parameters_directory: app/data/parameters/
   input_weather_series: app/data/parameters/IWS
-  output_directory: .
+  output_directory: app/data/outputs/
 
 UKCP18:
   model: M10
