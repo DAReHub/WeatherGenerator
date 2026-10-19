@@ -1,0 +1,33 @@
+paths:
+  parameters_directory: app/data/parameters/
+  input_weather_series: app/data/parameters/IWS
+  output_directory: .
+
+UKCP18:
+  model: M10
+
+temporal:
+  start_year: 2061
+  period: 20 # years
+  resolution: DAILY # DAILY or HOURLY. Daily resolution is not supported for weather variable temperature.
+
+spatial:
+  grid_size_km: 5
+  coordinates: # [easting, northing], add/remove from this list as necessary. Don't include any empty items.
+    - [ 337500, 552500 ]
+    - [ 337550, 552550 ]
+    -
+
+processing:
+  realisations: 100
+  variables: [ RAINFALL, TEMPERATURE ]
+  workers: 20
+  seed: 42
+
+temperature: # applies only if temperature is selected as a variable
+  R2: R2.parquet
+  standard_error: STANDARD_ERROR.parquet
+  transformation_fixed: TRANSFORMATION_FIXED.parquet
+  transformed_statitics: TRANSFORMED_STATISTICS.parquet
+  offset: OFFSET.parquet
+  wgen_params: WGENPARAMS.parquet
