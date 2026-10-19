@@ -63,7 +63,7 @@ def main():
         northing = coods[1]
 
         try:
-            print(f"Processing {easting}, {northing}: Rainfall")
+            print(f"Processing Easting {easting}, Northing {northing}: Rainfall")
             processing_start_time = time.time()
             rainfall_reals = rainfall.GetRealizations(
                 parameters=rainfall_parameters,
@@ -75,11 +75,11 @@ def main():
                 n_years=period,
                 base_seed=seed,
             )
-            print(rainfall_reals)
+            # print(rainfall_reals)
             # save rainfall
 
             if "TEMPERATURE" in variables:
-                print(f"Processing {easting}, {northing}: Temperature")
+                print(f"Processing Easting {easting}, Northing {northing}: Temperature")
                 IWS = pd.read_parquet(IWS_path / f"TEMPERATURE_{params_base_name}")
                 r2 = pd.read_parquet(R2_path)
                 SER = pd.read_parquet(standard_error_path)
@@ -129,7 +129,7 @@ def main():
                     },
                     workers=workers
                 )
-                print(temperature_reals)
+                # print(temperature_reals)
                 # save temperature
 
             if "WIND" in variables:

@@ -15,12 +15,12 @@ spatial:
   grid_size_km: 5
   coordinates: # [easting, northing], add/remove from this list as necessary. Don't include any empty items.
     - [ 337500, 552500 ]
-    - [ 337550, 552550 ]
+    - [ 357500, 537500 ]
 
 processing:
   realisations: 100
   variables: [ RAINFALL, TEMPERATURE ]
-  workers: 20
+  workers: 20 # multiprocessing split by year (not realisation), i.e. set 20 workers for 20 year period
   seed: 42
 
 temperature: # applies only if temperature is selected as a variable
