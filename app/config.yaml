@@ -18,7 +18,7 @@ spatial:
     - [ 357500, 537500 ]
 
 processing:
-  realisations: 100
+  realisation_count: 10
   variables: [ RAINFALL, TEMPERATURE ]
   workers: 20 # multiprocessing split by year (not realisation), i.e. set 20 workers for 20 year period
   seed: 42
@@ -30,3 +30,10 @@ temperature: # applies only if temperature is selected as a variable
   transformed_statitics: TRANSFORMED_STATISTICS.parquet
   offset: OFFSET.parquet
   wgen_params: WGENPARAMS.parquet
+
+plotting:
+  create_plots: True
+  mean_rainfall_path: app/data/plotting/MEAN_HUK_RF.parquet
+  rprf_path: app/data/plotting/RL24H_HUK.parquet
+  IWS_raw_statistics: app/data/plotting/InputWeatherSeries_RawStatistics.parquet
+  return_periods: [2, 3, 5, 10, 15, 20, 25, 30]

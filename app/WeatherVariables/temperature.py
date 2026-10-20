@@ -804,4 +804,8 @@ def process_temperature(
     TEMP_MIN = TEMP_AVG_filled - (0.5 * DTR_filled)
     TEMP_MAX = TEMP_AVG_filled + (0.5 * DTR_filled)
 
-    return TEMP_AVG_filled, TEMP_MIN, TEMP_MAX
+    return {
+        "average_filled": TEMP_AVG_filled,
+        "min": TEMP_MIN,
+        "max": TEMP_MAX
+    }

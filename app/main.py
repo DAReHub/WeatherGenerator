@@ -6,6 +6,8 @@ import pandas as pd
 from datetime import datetime
 from app.WeatherVariables import rainfall
 from app.WeatherVariables import temperature
+from app.Plotting import plot_rainfall
+from app.Plotting import plot_temperature
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -18,7 +20,7 @@ args = parser.parse_args()
 def load_config(path):
     with open(path, "r") as f:
         config = yaml.safe_load(f)
-        print("[config] loaded: ", config)
+        print("config loaded: ", config)
         return config
 
 def create_output_dir(dir):
@@ -46,7 +48,7 @@ def main():
         raise ValueError(
             "Failed to load coordinates: check formatting in config file."
         ) from e
-    realisations = int(config["processing"]["realisations"])
+    realisation_count = int(config["processing"]["realisation_count"])
     variables = list(config["processing"]["variables"])
     workers = int(config["processing"]["workers"])
     R2_path = parameters_directory / config["temperature"]["R2"]
@@ -56,6 +58,11 @@ def main():
     offset_path = parameters_directory / config["temperature"]["offset"]
     wgen_params_path = parameters_directory / config["temperature"]["wgen_params"]
     seed = config["processing"]["seed"]
+    create_plots = bool(config["plotting"]["create_plots"])
+    mean_rf_path = Path(config["plotting"]["mean_rainfall_path"])
+    rprf_path = Path(config["plotting"]["rprf_path"]) #todo: What is rprf?
+    IWS_raw_statistics = Path(config["plotting"]["IWS_raw_statistics"])
+    return_periods = list(config["plotting"]["return_periods"])
 
     if temp_resolution != "DAILY" and "TEMPERATURE" in variables:
         raise Exception("Only DAILY temporal resolution supported for variable TEMPERATURE")
@@ -72,11 +79,11 @@ def main():
         northing = coods[1]
 
         try:
-            print(f"Processing Easting {easting}, Northing {northing}: Rainfall")
+            print(f"Easting {easting}, Northing {northing} [Rainfall]: Processing")
             processing_start_time = time.time()
             rainfall_reals = rainfall.GetRealizations(
                 parameters=rainfall_parameters,
-                n_realizations=realisations,
+                n_realizations=realisation_count,
                 RealizationStartYear=start_year,
                 temp_resolution=temp_resolution,
                 EASTING=easting,
@@ -84,12 +91,26 @@ def main():
                 n_years=period,
                 base_seed=seed,
             )
+            print(f"Easting {easting}, Northing {northing} [Rainfall]: Writing")
             rainfall_reals.to_csv(
                 run_directory / f"E{easting}_N{northing}_rainfall.csv",
-                index=False)
+                index=False
+            )
+            if create_plots:
+                print(f"Easting {easting}, Northing {northing} [Rainfall]: Plotting")
+                plot_rainfall.main(
+                    mean_rf_path=mean_rf_path,
+                    rprf_path=rprf_path,
+                    realisations=rainfall_reals,
+                    EASTING=easting,
+                    NORTHING=northing,
+                    n_realizations=realisation_count,
+                    return_periods=return_periods,
+                    output_dir=run_directory,
+                )
 
             if "TEMPERATURE" in variables:
-                print(f"Processing Easting {easting}, Northing {northing}: Temperature")
+                print(f"Easting {easting}, Northing {northing} [Temperature]: Processing")
                 IWS = pd.read_parquet(IWS_path / f"TEMPERATURE_{params_base_name}")
                 r2 = pd.read_parquet(R2_path)
                 SER = pd.read_parquet(standard_error_path)
@@ -98,9 +119,9 @@ def main():
                 transtat = pd.read_parquet(transformed_statistics_path)
                 offset = pd.read_parquet(offset_path)
 
-                TEMP_AVG_filled, TEMP_MIN, TEMP_MAX = temperature.process_temperature(
+                temp_reals_dict = temperature.process_temperature(
                     all_realizations_df=rainfall_reals,
-                    realisation_count=realisations,
+                    realisation_count=realisation_count,
                     IWS=IWS,
                     r2=r2,
                     SER=SER,
@@ -139,15 +160,22 @@ def main():
                     },
                     workers=workers
                 )
-                TEMP_AVG_filled.to_csv(
-                    run_directory / f"E{easting}_N{northing}_temperature_average_filled.csv",
-                    index=False)
-                TEMP_MIN.to_csv(
-                    run_directory / f"E{easting}_N{northing}_temperature_min.csv",
-                    index=False)
-                TEMP_MAX.to_csv(
-                    run_directory / f"E{easting}_N{northing}_temperature_max.csv",
-                    index=False)
+                print(f"Easting {easting}, Northing {northing} [Temperature]: Writing")
+                for key, value in temp_reals_dict.items():
+                    value.to_csv(
+                        run_directory / f"E{easting}_N{northing}_temperature_{key}.csv",
+                        index=False
+                    )
+                if create_plots:
+                    print(f"Easting {easting}, Northing {northing} [Temperature]: Plotting")
+                    plot_temperature.main(
+                        obs_path=IWS_raw_statistics,
+                        realisations=temp_reals_dict["average_filled"], #todo: is this the one we want to plot?
+                        EASTING=easting,
+                        NORTHING=northing,
+                        n_realizations=realisation_count,
+                        output_dir=run_directory,
+                    )
 
             if "WIND" in variables:
                 pass
