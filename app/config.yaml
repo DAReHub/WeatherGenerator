@@ -3,17 +3,17 @@ paths:
   input_weather_series: app/data/parameters/IWS
   output_directory: app/data/outputs/
 
-UKCP18:
-  model: M10
+model:
+  ensemble_member: M10 # Options: BASELINE, M01, M04, M05, M06, M07, M08, M09, M10, M11, M12, M13, M15, M23, M25, M27, M29
 
 temporal:
   start_year: 2061
   period: 20 # years
-  resolution: DAILY # DAILY or HOURLY. Daily resolution is not supported for weather variable temperature.
+  resolution: DAILY # DAILY or HOURLY. Daily resolution is not supported for weather variable temperature or BASELINE model.
 
 spatial:
   grid_size_km: 5
-  coordinates: # [easting, northing], add/remove from this list as necessary. Don't include any empty items.
+  coordinates: # British National Grid (EPSG:27700) [easting, northing]. Add/remove from this list as necessary. Don't include any empty items.
     - [ 337500, 552500 ]
     - [ 357500, 537500 ]
 
@@ -21,7 +21,7 @@ processing:
   realisation_count: 10
   variables: [ RAINFALL, TEMPERATURE ]
   workers: 20 # multiprocessing split by year (not realisation), i.e. set 20 workers for 20 year period
-  seed: 42
+  seed: -1 # positive integer, set to -1 for a random seed value
 
 temperature: # applies only if temperature is selected as a variable
   R2: R2.parquet

@@ -4,6 +4,7 @@ import yaml
 from pathlib import Path
 import pandas as pd
 from datetime import datetime
+import random
 from app.WeatherVariables import rainfall
 from app.WeatherVariables import temperature
 from app.Plotting import plot_rainfall
@@ -36,7 +37,7 @@ def main():
     parameters_directory = Path(config["paths"]["parameters_directory"])
     IWS_path = Path(config["paths"]["input_weather_series"])
     output_directory = Path(config["paths"]["output_directory"])
-    model = str(config["UKCP18"]["model"])
+    model = str(config["model"]["ensemble_member"])
     start_year = int(config["temporal"]["start_year"])
     period = int(config["temporal"]["period"])
     end_year = start_year + period - 1
@@ -64,8 +65,19 @@ def main():
     IWS_raw_statistics = Path(config["plotting"]["IWS_raw_statistics"])
     return_periods = list(config["plotting"]["return_periods"])
 
+    if (
+            (model == "BASELINE" and start_year != 2001)
+            or (model == "BASELINE" and temp_resolution == "DAILY")
+            or (model == "BASELINE" and "TEMPERATURE" in variables)
+    ):
+        raise Exception("For BASELINE model: temporal start_year must be 2001, temporal resolution must be HOURLY, and processing variables must only include RAINFALL")
+
     if temp_resolution != "DAILY" and "TEMPERATURE" in variables:
         raise Exception("Only DAILY temporal resolution supported for variable TEMPERATURE")
+
+    if seed == -1:
+        seed = random.randint(1, 1000000)
+        print(f"seed set randomly to {seed}")
 
     params_base_name = f"{grid_size}KM_{start_year}_{end_year}_{model}_{temp_resolution}.parquet"
     rainfall_parameters = pd.read_parquet(IWS_path / f"RAINFALL_{params_base_name}")
@@ -96,7 +108,7 @@ def main():
                 run_directory / f"E{easting}_N{northing}_rainfall.csv",
                 index=False
             )
-            if create_plots:
+            if create_plots: # todo: what to do about baseline plotting?
                 print(f"Easting {easting}, Northing {northing} [Rainfall]: Plotting")
                 plot_rainfall.main(
                     mean_rf_path=mean_rf_path,
