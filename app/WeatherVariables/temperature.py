@@ -262,7 +262,6 @@ def interpolated_parameters_point(
 
     return interpolated_parameters
 
-
 def simulate_daily_weather_point(
         RAINFALL_REALIZATIONS,
         year,
@@ -292,15 +291,14 @@ def simulate_daily_weather_point(
         base_seed,
         realization_counter
 ):
-    RF2 = RAINFALL_REALIZATIONS[(RAINFALL_REALIZATIONS['Year'] == year) & (
-                RAINFALL_REALIZATIONS['Month'] == month)]
+    RF2 = RAINFALL_REALIZATIONS.loc[
+        (RAINFALL_REALIZATIONS['Year'] == year)
+        & (RAINFALL_REALIZATIONS['Month'] == month)
+    ]
     n_timesteps = RF2.shape[0]
-    RAINFALL = []
-    for r in range(1, n_realizations + 1):
-        rain_input = {'point': RF2[[f'Realization_{r}']].rename(
-            columns={f'Realization_{r}': 'rainfall'})}
-        RAINFALL.append(rain_input)
-
+    RAIN_INPUT = {
+        'point': RF2[[f'Realization_{realization_counter + 1}']].rename(
+            columns={f'Realization_{realization_counter + 1}': 'rainfall'})}
     season = month
     transition_key_nb = numba.typed.Dict.empty(numba.types.int64,
                                                numba.types.string)  # numba.types.unicode_type
@@ -328,7 +326,7 @@ def simulate_daily_weather_point(
         transition_key_nb[k] = v
 
     for k, v in parameters.items():
-        parameters_nb[k] = np.array(v, dtype=np.float64)
+        parameters_nb[k] = v
 
     for k, vs in predictors.items():
         tmp = []
@@ -425,11 +423,11 @@ def simulate_daily_weather_point(
             if timestep != 24:
                 # t99a = datetime.datetime.now()
                 values[(output_type, 'prcp')][2:, :] = aggregate_rainfall(
-                    RAINFALL[realization_counter][output_type],
-                    n_points[output_type], int(24 / timestep), )
+                    RAIN_INPUT[realization_counter][output_type],
+                    n_points[output_type], int(24 / timestep))
             else:
-                values[(output_type, 'prcp')][2:, :] = \
-                RAINFALL[realization_counter][output_type][:]
+                values[(output_type, 'prcp')][2:, :] = RAIN_INPUT[
+                    output_type].to_numpy()
 
             # Identify transition states
             transitions = np.zeros((n_days, n_points[output_type]), dtype=int)
@@ -503,21 +501,10 @@ def simulate_daily_weather_point(
         residuals_dummy = np.zeros(n_points[output_type])
         for variable in input_variables:
             z_scores[(output_type, variable)][2:, :], ri = regressions(
-                n_days,
-                season_length,
-                month,
-                variable,
-                sn_sample,
-                ri,
-                transition_key_nb,
-                z_scores_nb,
-                output_type,
-                transitions,
-                parameters_nb,
-                pool_id,
-                predictors_nb,
-                interpolated_parameters_nb,
-                residuals_dummy
+                n_days, season_length, month, variable, sn_sample, ri,
+                transition_key_nb, z_scores_nb, output_type, transitions,
+                parameters_nb, pool_id, predictors_nb,
+                interpolated_parameters_nb, residuals_dummy
             )
 
         for variable in input_variables:
@@ -603,9 +590,9 @@ def getMonthlySimulations(
         transtat_dict,
         OFFSET_DF,
         realisation_count,
-        predictors
+        predictors,
+        base_seed
 ):
-    base_seed = 42
     n_realizations = realisation_count
     simulations = [
         simulate_daily_weather_point(
@@ -673,7 +660,8 @@ def run_year(
         transtat_dict,
         OFFSET_DF,
         realisation_count,
-        predictors
+        predictors,
+        seed
 ):
     months = list(range(1, 13))
     return (
@@ -694,7 +682,8 @@ def run_year(
                 transtat_dict=transtat_dict,
                 OFFSET_DF=OFFSET_DF,
                 realisation_count=realisation_count,
-                predictors=predictors
+                predictors=predictors,
+                base_seed=seed
             ) for m in months
         ]
     )
@@ -713,7 +702,8 @@ def process_temperature(
         easting,
         northing,
         predictors,
-        workers
+        workers,
+        seed
 ):
     raw_statistics = IWS[(IWS['easting'] == easting) & (
                 IWS['northing'] == northing)].reset_index(drop=True)
@@ -780,7 +770,8 @@ def process_temperature(
                 transtat_dict,
                 OFFSET_DF,
                 realisation_count,
-                predictors
+                predictors,
+                seed
             ): y for y in YEARS
         }
         for fut in as_completed(futures):

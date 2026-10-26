@@ -170,7 +170,8 @@ def main():
                         ('sun_dur', 'WD'): ['sun_dur_lag1', 'temp_avg', 'dtr'],
                         ('sun_dur', 'WW'): ['sun_dur_lag1', 'prcp', 'temp_avg', 'dtr']
                     },
-                    workers=workers
+                    workers=workers,
+                    seed=seed
                 )
                 print(f"Easting {easting}, Northing {northing} [Temperature]: Writing")
                 for key, value in temp_reals_dict.items():
@@ -182,7 +183,7 @@ def main():
                     print(f"Easting {easting}, Northing {northing} [Temperature]: Plotting")
                     plot_temperature.main(
                         obs_path=IWS_raw_statistics,
-                        realisations=temp_reals_dict["average_filled"], #todo: is this the one we want to plot?
+                        realisations=temp_reals_dict["average_filled"],
                         EASTING=easting,
                         NORTHING=northing,
                         n_realizations=realisation_count,
