@@ -150,4 +150,4 @@ def main(
         loc='upper left'
     )
     # plt.show()
-    plt.savefig(output_dir / f"E{EASTING}_N{NORTHING}_rainfall_plot.png")
+    plt.savefig(output_dir / f"E{EASTING}_N{NORTHING}_RAINFALL.png")

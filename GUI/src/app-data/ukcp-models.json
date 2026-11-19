@@ -1,0 +1,76 @@
+[
+  {
+    "set": "HadGEM3-GC3.05 Perturbed Parameter Ensemble (PPE)",
+    "items": [
+      {
+        "name": "M01",
+        "description": "The standard parameter setting of HadGEM3-GC3.05 (perturbed-physics ID r001i1p00000), often treated as the reference member of the PPE."
+      },
+      {
+        "name": "M04",
+        "description": "HadGEM3-GC3.05 PPE member (r001i1p01113)."
+      },
+      {
+        "name": "M05",
+        "description": "HadGEM3-GC3.05 PPE member (r001i1p01554)."
+      },
+      {
+        "name": "M06",
+        "description": "HadGEM3-GC3.05 PPE member (r001i1p01649)."
+      },
+      {
+        "name": "M07",
+        "description": "HadGEM3-GC3.05 PPE member (r001i1p01843)."
+      },
+      {
+        "name": "M08",
+        "description": "HadGEM3-GC3.05 PPE member (r001i1p01935)."
+      },
+      {
+        "name": "M09",
+        "description": "HadGEM3-GC3.05 PPE member (r001i1p02123)."
+      },
+      {
+        "name": "M10",
+        "description": "HadGEM3-GC3.05 PPE member (r001i1p02242)."
+      },
+      {
+        "name": "M11",
+        "description": "HadGEM3-GC3.05 PPE member (r001i1p02305)."
+      },
+      {
+        "name": "M12",
+        "description": "HadGEM3-GC3.05 PPE member (r001i1p02335)."
+      },
+      {
+        "name": "M13",
+        "description": "HadGEM3-GC3.05 PPE member (r001i1p02491)."
+      },
+      {
+        "name": "M15",
+        "description": "HadGEM3-GC3.05 PPE member (r001i1p02868)."
+      }
+    ]
+  },
+  {
+    "set": "CMIP5-derived members",
+    "items": [
+      {
+        "name": "M23",
+        "description": "Driven by ACCESS1-3, a CMIP5 model from CSIRO-BOM, Australia."
+      },
+      {
+        "name": "M25",
+        "description": "Driven by IPSL-CM5A-MR, a CMIP5 model from the Institut Pierre-Simon Laplace, France."
+      },
+      {
+        "name": "M27",
+        "description": "Driven by MRI-CGCM3, a CMIP5 model from the Meteorological Research Institute, Japan."
+      },
+      {
+        "name": "M29",
+        "description": "Driven by MPI-ESM-LR."
+      }
+    ]
+  }
+]

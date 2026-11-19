@@ -1,22 +1,18 @@
 import time
+import sys
 import argparse
 import yaml
 from pathlib import Path
 import pandas as pd
 from datetime import datetime
 import random
-from app.WeatherVariables import rainfall
-from app.WeatherVariables import temperature
-from app.Plotting import plot_rainfall
-from app.Plotting import plot_temperature
+import json
 
-parser = argparse.ArgumentParser()
-parser.add_argument(
-    '--config',
-    required=True,
-    help='Path to config .yaml file',
-)
-args = parser.parse_args()
+from BaseScripts.MultiSiteNSRP_PointBasedOutput import write_output
+from WeatherVariables import rainfall
+from WeatherVariables import temperature
+from Plotting import plot_rainfall
+from Plotting import plot_temperature
 
 def load_config(path):
     with open(path, "r") as f:
@@ -24,19 +20,22 @@ def load_config(path):
         print("config loaded: ", config)
         return config
 
-def create_output_dir(dir):
+def create_output_dir(dir, config):
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     run_directory = dir / timestamp
     run_directory.mkdir(parents=True, exist_ok=True)
+    with open(f"{run_directory}/config.json", "w") as f:
+        json.dump(config, f, indent=2)
     return run_directory
 
-def main():
+def run(config: dict):
+    print(config)
     start_time = time.time()
 
-    config = load_config(args.config)
     parameters_directory = Path(config["paths"]["parameters_directory"])
     IWS_path = Path(config["paths"]["input_weather_series"])
     output_directory = Path(config["paths"]["output_directory"])
+    write_outputs = bool(config["paths"]["write_outputs"])
     model = str(config["model"]["ensemble_member"])
     start_year = int(config["temporal"]["start_year"])
     period = int(config["temporal"]["period"])
@@ -65,15 +64,18 @@ def main():
     IWS_raw_statistics = Path(config["plotting"]["IWS_raw_statistics"])
     return_periods = list(config["plotting"]["return_periods"])
 
+    if "RAINFALL" not in variables:
+        raise Exception("RAINFALL is a requred weather variable")
+
     if (
             (model == "BASELINE" and start_year != 2001)
             or (model == "BASELINE" and temp_resolution == "DAILY")
-            or (model == "BASELINE" and "TEMPERATURE" in variables)
+            or (model == "BASELINE" and len(variables) > 1)
     ):
         raise Exception("For BASELINE model: temporal start_year must be 2001, temporal resolution must be HOURLY, and processing variables must only include RAINFALL")
 
-    if temp_resolution != "DAILY" and "TEMPERATURE" in variables:
-        raise Exception("Only DAILY temporal resolution supported for variable TEMPERATURE")
+    if temp_resolution == "HOURLY" and len(variables) > 1:
+        raise Exception("HOURLY temporal resolution only supported for weather variable RAINFALL")
 
     if seed == -1:
         seed = random.randint(1, 1000000)
@@ -82,9 +84,10 @@ def main():
     params_base_name = f"{grid_size}KM_{start_year}_{end_year}_{model}_{temp_resolution}.parquet"
     rainfall_parameters = pd.read_parquet(IWS_path / f"RAINFALL_{params_base_name}")
 
-    run_directory = create_output_dir(output_directory)
+    run_directory = create_output_dir(output_directory, config)
 
     states = {}
+    results = {}
 
     for coods in coordinates:
         easting = coods[0]
@@ -103,13 +106,16 @@ def main():
                 n_years=period,
                 base_seed=seed,
             )
-            print(f"Easting {easting}, Northing {northing} [Rainfall]: Writing")
-            rainfall_reals.to_csv(
-                run_directory / f"E{easting}_N{northing}_rainfall.csv",
-                index=False
-            )
-            if create_plots: # todo: what to do about baseline plotting?
-                print(f"Easting {easting}, Northing {northing} [Rainfall]: Plotting")
+            results[f"E{easting}_N{northing}_RAINFALL"] = rainfall_reals
+            if write_outputs:
+                print(f"Easting {easting}, Northing {northing} [RAINFALL]: Writing")
+                rainfall_reals.to_csv(
+                    run_directory / f"E{easting}_N{northing}_RAINFALL.csv",
+                    index=False
+                )
+            if write_outputs and create_plots: # todo: what to do about baseline plotting?
+                print(f"Easting {easting}, Northing {northing} [RAINFALL]: Plotting")
+                # TODO: for this weather variable and others: write plots to memory and then either write to disk here or iobuffer to return to user through UI
                 plot_rainfall.main(
                     mean_rf_path=mean_rf_path,
                     rprf_path=rprf_path,
@@ -122,7 +128,7 @@ def main():
                 )
 
             if "TEMPERATURE" in variables:
-                print(f"Easting {easting}, Northing {northing} [Temperature]: Processing")
+                print(f"Easting {easting}, Northing {northing} [TEMPERATURE]: Processing")
                 IWS = pd.read_parquet(IWS_path / f"TEMPERATURE_{params_base_name}")
                 r2 = pd.read_parquet(R2_path)
                 SER = pd.read_parquet(standard_error_path)
@@ -173,14 +179,17 @@ def main():
                     workers=workers,
                     seed=seed
                 )
-                print(f"Easting {easting}, Northing {northing} [Temperature]: Writing")
                 for key, value in temp_reals_dict.items():
-                    value.to_csv(
-                        run_directory / f"E{easting}_N{northing}_temperature_{key}.csv",
-                        index=False
-                    )
-                if create_plots:
-                    print(f"Easting {easting}, Northing {northing} [Temperature]: Plotting")
+                    results[f"E{easting}_N{northing}_TEMPERATURE_{key}"] = value
+                if write_outputs:
+                    print(f"Easting {easting}, Northing {northing} [TEMPERATURE]: Writing")
+                    for key, value in temp_reals_dict.items():
+                        value.to_csv(
+                            run_directory / f"E{easting}_N{northing}_TEMPERATURE_{key}.csv",
+                            index=False
+                        )
+                if write_outputs and create_plots:
+                    print(f"Easting {easting}, Northing {northing} [TEMPERATURE]: Plotting")
                     plot_temperature.main(
                         obs_path=IWS_raw_statistics,
                         realisations=temp_reals_dict["average_filled"],
@@ -191,6 +200,15 @@ def main():
                     )
 
             if "WIND" in variables:
+                pass
+
+            if "VAPOUR PRESSURE" in variables:
+                pass
+
+            if "SUNSHINE DURATION" in variables:
+                pass
+
+            if "POTENTIAL EVAPOTRANSPIRATION" in variables:
                 pass
 
             processing_time = round(time.time() - processing_start_time)
@@ -206,5 +224,22 @@ def main():
     for k, v in states.items():
         print(k, v)
 
+    if not write_outputs:
+        return results
+    else:
+        return 0
+
+def main(argv=None):
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--config",
+        default="config.yaml",
+        required=False,
+        help='Path to config .yaml file',
+    )
+    args = parser.parse_args(argv)
+    results = run(load_config(args.config))
+    return results
+
 if __name__ == "__main__":
-    main()
+    main(sys.exit(main()))

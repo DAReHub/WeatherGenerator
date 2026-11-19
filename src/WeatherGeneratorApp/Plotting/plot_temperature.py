@@ -58,4 +58,4 @@ def main(
         month_names
     )
     # plt.show()
-    plt.savefig(output_dir / f"E{EASTING}_N{NORTHING}_temperature_plot.png")
+    plt.savefig(output_dir / f"E{EASTING}_N{NORTHING}_TEMPERATURE.png")
