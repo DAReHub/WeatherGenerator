@@ -1,3 +1,5 @@
+# USE THIS FILE ONLY FOR RUNNING THE WEATHER GENERATOR USING THE PYTHON SCRIPT (pyhton src/WeatherGeneratorApp/main.py --config config.py). FOR DOCKER INSTRUCTIONS SEE README
+
 paths:
   parameters_directory: data/parameters/
   input_weather_series: data/parameters/IWS
