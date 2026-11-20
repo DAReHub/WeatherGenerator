@@ -39,6 +39,10 @@ Build and deploy:
 
     docker-compose up --build -d
 
+Access the application in your browser at:
+
+    http://localhost:5173/
+
 ### BaseScripts (Jupyter Notebook)
 The Jupyter Notebook scripts within BaseScripts are experimental. These are not recommended for daily Weather Generator use.
 

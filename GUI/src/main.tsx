@@ -9,9 +9,7 @@ import PasswordGate from "@/components/PasswordGate"
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <ThemeProvider>
-      <PasswordGate>
-        <App />
-      </PasswordGate>
+      <App />
     </ThemeProvider>
   </StrictMode>
 )
