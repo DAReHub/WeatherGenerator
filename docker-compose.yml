@@ -1,0 +1,53 @@
+services:
+  weather-generator-gui:
+    build:
+      context: GUI
+      target: production
+      args:
+        VITE_MAPTILER_KEY: ${MAPTILER_KEY}
+        VITE_MAX_REALS: ${MAX_REALS}
+        VITE_MAX_LOCATIONS: ${MAX_LOCATIONS}
+    ports:
+      - "5173:80"
+    environment:
+      - NODE_ENV=production
+    networks:
+      - backend
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+    restart: always
+
+  weather-generator-api:
+    build:
+      context: .
+      dockerfile: src/fastAPI/Dockerfile
+    ports:
+      - "8000"
+    user: "${UID}:${GID}"
+    volumes:
+      - ./data:/app/data:ro
+      - ./outputs:/app/outputs
+    environment:
+      - WORKERS=${WORKERS}
+      - MAX_REALS=${MAX_REALS}
+      - MAX_LOCATIONS=${MAX_LOCATIONS}
+    networks:
+      - backend
+    restart: always
+
+  weather-generator-nginx:
+    image: nginx:1.27-alpine
+    restart: always
+    volumes:
+      - ./src/fastAPI/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - backend
+    depends_on:
+      - weather-generator-api
+
+networks:
+  backend:
+    driver: bridge

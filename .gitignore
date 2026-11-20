@@ -220,3 +220,5 @@ __marimo__/
 # my gitignore
 data
 .idea
+todo.txt
+outputs
