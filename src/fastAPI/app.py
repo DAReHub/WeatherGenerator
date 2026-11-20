@@ -10,8 +10,6 @@ import json
 import re
 import copy
 import os
-from Plotting import plot_rainfall
-from Plotting import plot_temperature
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "WeatherGeneratorApp"))
 from WeatherGeneratorApp import main as wg

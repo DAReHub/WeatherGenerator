@@ -25,7 +25,7 @@ services:
       context: .
       dockerfile: src/fastAPI/Dockerfile
     ports:
-      - "5555:8000"
+      - "8000"
     user: "${UID}:${GID}"
     volumes:
       - ./data:/app/data:ro

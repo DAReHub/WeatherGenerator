@@ -7,8 +7,6 @@ import pandas as pd
 from datetime import datetime
 import random
 import json
-
-from BaseScripts.MultiSiteNSRP_PointBasedOutput import write_output
 from WeatherVariables import rainfall
 from WeatherVariables import temperature
 from Plotting import plot_rainfall
@@ -20,12 +18,10 @@ def load_config(path):
         print("config loaded: ", config)
         return config
 
-def create_output_dir(dir, config):
+def create_output_dir(dir):
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     run_directory = dir / timestamp
     run_directory.mkdir(parents=True, exist_ok=True)
-    with open(f"{run_directory}/config.json", "w") as f:
-        json.dump(config, f, indent=2)
     return run_directory
 
 def run(config: dict):
@@ -84,7 +80,11 @@ def run(config: dict):
     params_base_name = f"{grid_size}KM_{start_year}_{end_year}_{model}_{temp_resolution}.parquet"
     rainfall_parameters = pd.read_parquet(IWS_path / f"RAINFALL_{params_base_name}")
 
-    run_directory = create_output_dir(output_directory, config)
+    run_directory = create_output_dir(output_directory)
+
+    if write_outputs:
+        with open(f"{run_directory}/config.json", "w") as f:
+            json.dump(config, f, indent=2)
 
     states = {}
     results = {}
