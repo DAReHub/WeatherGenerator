@@ -259,10 +259,19 @@ export function GenerateRealsDialog({
 
   const handleSelectVariable = (id: string, checked: boolean) => {
     setVariables((prev) => {
-      const next = checked
-        ? Array.from(new Set([...prev, id]))
-        : prev.filter((v) => v !== id)
-      return next.length === 0 ? prev : next // keep at least one selected
+      if (checked) {
+        const deps: readonly string[] =
+          VARIABLES.find((v) => v.id === id)?.dependencies ?? []
+        return Array.from(new Set([...prev, id, ...deps]))
+      }
+      // unticking: remove this variable and anything that depends on it
+      const removed = new Set<string>([
+        id,
+        ...VARIABLES.filter((v) =>
+          (v.dependencies as readonly string[]).includes(id)
+        ).map((v) => v.id),
+      ])
+      return prev.filter((v) => !removed.has(v))
     })
   }
 
@@ -294,6 +303,7 @@ export function GenerateRealsDialog({
       locked: true,
       resolution: "Hourly, Daily",
       units: "mm",
+      dependencies: []
     },
     {
       id: "Temperature",
@@ -302,6 +312,7 @@ export function GenerateRealsDialog({
       locked: false,
       resolution: "Daily",
       units: "°C",
+      dependencies: ["Rainfall"]
     },
     {
       id: "Wind Speed",
@@ -310,30 +321,34 @@ export function GenerateRealsDialog({
       locked: false,
       resolution: "Daily",
       units: "m/s",
+      dependencies: ["Rainfall", "Temperature"]
     },
     {
       id: "Vapour Pressure",
       label: "Vapour Pressure",
       icon: Gauge,
-      locaked: false,
+      locked: false,
       resolution: "Daily",
-      units: "kPa"
+      units: "kPa",
+      dependencies: ["Rainfall", "Temperature"]
     },
     {
       id: "Sunshine Duration",
       label: "Sunshine Duration",
       icon: Sun,
-      locaked: false,
+      locked: false,
       resolution: "Daily",
-      units: "hours"
+      units: "hours",
+      dependencies: ["Rainfall", "Temperature"]
     },
     {
       id: "Potential Evapotranspiration",
       label: "Potential Evapotranspiration",
       icon: WavesVertical,
-      locaked: false,
+      locked: false,
       resolution: "Daily",
-      units: "mm/d"
+      units: "mm/d",
+      dependencies: ["Rainfall", "Temperature", "Wind Speed", "Vapour Pressure", "Sunshine Duration"]
     }
   ] as const
 
@@ -385,7 +400,7 @@ export function GenerateRealsDialog({
         {/* Scenario */}
         <Field>
           {/*<Label>Climate Variables</Label>*/}
-          <div className="rounded-md border [&>div]:overflow-visible">
+          <div className="overflow-hidden rounded-md border">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -393,20 +408,19 @@ export function GenerateRealsDialog({
                   <TableHead>Climate Variables</TableHead>
                   <TableHead>Temporal Resolution</TableHead>
                   <TableHead>Measurement Units</TableHead>
+                  <TableHead>Dependent Variables</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {VARIABLES.map(
-                  ({ id, label, icon: Icon, locked, resolution, units }) => {
+                  ({ id, label, icon: Icon, locked, resolution, units, dependencies }) => {
                     const checked = variables.includes(id)
                     return (
                       <TableRow
                         key={id}
                         data-state={checked ? "selected" : undefined}
                         className={cn(!locked && "cursor-pointer")}
-                        onClick={() =>
-                          !locked && handleSelectVariable(id, !checked)
-                        }
+                        onClick={() => !locked && handleSelectVariable(id, !checked)}
                       >
                         <TableCell>
                           <Checkbox
@@ -415,9 +429,7 @@ export function GenerateRealsDialog({
                             checked={checked}
                             disabled={locked}
                             onClick={(e) => e.stopPropagation()}
-                            onCheckedChange={(c) =>
-                              handleSelectVariable(id, c === true)
-                            }
+                            onCheckedChange={(c) => handleSelectVariable(id, c === true)}
                           />
                         </TableCell>
                         <TableCell className="font-medium">
@@ -436,8 +448,22 @@ export function GenerateRealsDialog({
                           </Label>
                         </TableCell>
                         <TableCell>{resolution}</TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {units}
+                        <TableCell className="text-muted-foreground">{units}</TableCell>
+                        <TableCell>
+                          {dependencies.length === 0 ? (
+                            <span className="text-xs text-muted-foreground">None</span>
+                          ) : (
+                            <div className="flex items-center gap-1.5 text-muted-foreground">
+                              {dependencies.map((dep) => {
+                                const DepIcon = VARIABLES.find((v) => v.id === dep)?.icon
+                                return DepIcon ? (
+                                  <span key={dep} title={dep}>
+                                    <DepIcon className="h-4 w-4" />
+                                  </span>
+                                ) : null
+                              })}
+                            </div>
+                          )}
                         </TableCell>
                       </TableRow>
                     )

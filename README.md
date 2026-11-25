@@ -2,7 +2,7 @@
 
 Welcome to the DARe Hub and Climate Co-Centre weather generator repository !
 
-![DAReflow Architecture](https://github.com/DAReHub/WeatherGenerator/blob/main/images/screenshot.png?raw=true)
+![WeatherGeneratorScreenshot](https://github.com/DAReHub/WeatherGenerator/blob/main/images/screenshot.png?raw=true)
 
 ## How to Run
 ### Data
@@ -15,6 +15,8 @@ Finally, create a directory in the top level directory called `outputs`.
 ### Python Scripts
 To access all features of the weather generator run directly using python scripts.
 
+#### Setup
+
 Create and activate a new virtual enviroment:
 
     conda create -n weathergenerator python=3.12
@@ -24,7 +26,23 @@ Install requirements:
 
     pip install -r requirements.txt
 
-Modify parameters in `config.yaml` file - notes and default values are included.
+#### Config
+
+Modify parameters in `config.yaml` file. Notes and default values are included, but please take note of **climate variable** dependencies and available temporal resolutions:
+- The tool can generate realisations for several climate variables. Some variables are derived from others, so each one has a set of dependencies: other variables that must be generated alongside it.
+- Rainfall is required by every other variable, so it is always selected and cannot be turned off.
+- Only Rainfall is available at both hourly and daily resolution. Every other variable is daily only. Because every other variable depends on Temperature, they are all subject to Temperature's lower limit on the number of realisations.
+
+| Variable | Temporal Resolution | Output Units | Dependencies |
+| --- | --- | --- | --- |
+| Rainfall | Hourly, Daily | mm | None |
+| Temperature | Daily | °C | Rainfall |
+| Wind Speed | Daily | m/s | Rainfall, Temperature |
+| Vapour Pressure | Daily | kPa | Rainfall, Temperature |
+| Sunshine Duration | Daily | hours | Rainfall, Temperature |
+| Potential Evapotranspiration | Daily | mm/d | Rainfall, Temperature, Wind Speed, Vapour Pressure, Sunshine Duration |
+
+#### Run
 
 Run the weather generator, specifying the location of your configuration file:
 

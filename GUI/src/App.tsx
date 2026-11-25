@@ -34,7 +34,7 @@ function App() {
   return (
     <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
       <div className="flex h-screen w-screen flex-col gap-4 p-4 lg:flex-row">
-        <div className="flex max-h-[45vh] w-full flex-col gap-4 overflow-x-visible overflow-y-auto px-1 lg:max-h-none lg:w-full lg:max-w-2xl">
+        <div className="flex max-h-[45vh] w-full flex-col gap-4 overflow-x-visible overflow-y-auto px-1 lg:max-h-none lg:w-full lg:max-w-4xl">
           <Header onAboutClick={() => setAboutOpen(true)} />
           <SidePanel
             PERIODS={PERIODS}

@@ -689,7 +689,7 @@ def run_year(
     )
 
 
-def process_temperature(
+def GetRealizations(
         all_realizations_df,
         realisation_count,
         IWS,
@@ -798,5 +798,6 @@ def process_temperature(
     return {
         "average_filled": TEMP_AVG_filled,
         "min": TEMP_MIN,
-        "max": TEMP_MAX
+        "max": TEMP_MAX,
+        "DTR": DTR_filled,
     }

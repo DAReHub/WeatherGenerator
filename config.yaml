@@ -7,7 +7,7 @@ paths:
   write_outputs: True
 
 model:
-  ensemble_member: M10 # Options: BASELINE, M01, M04, M05, M06, M07, M08, M09, M10, M11, M12, M13, M15, M23, M25, M27, M29
+  ensemble_member: M01 # Options: BASELINE, M01, M04, M05, M06, M07, M08, M09, M10, M11, M12, M13, M15, M23, M25, M27, M29
 
 temporal:
   start_year: 2061
@@ -21,8 +21,8 @@ spatial:
     - [ 357500, 537500 ]
 
 processing:
-  realisation_count: 10
-  variables: [ RAINFALL, TEMPERATURE ] # List. Required: RAINFALL. Additional options: TEMPERATURE, VAPOUR PRESSURE, SUNSHINE DURATION, POTENTIAL EVAPOTRANSPIRATION
+  realisation_count: 100 # At least 100 realisations recommended
+  variables: [ RAINFALL, TEMPERATURE ] # List. Options: RAINFALL, TEMPERATURE, WIND SPEED, VAPOUR PRESSURE, SUNSHINE DURATION, POTENTIAL EVAPOTRANSPIRATION. Note: if a climate variable depends upon another, these will also be processed.
   workers: 20 # multiprocessing split by year (not realisation), i.e. set 20 workers for 20 year period
   seed: -1 # positive integer, set to -1 for a random seed value
 
@@ -30,7 +30,7 @@ temperature: # applies only if temperature is selected as a variable
   R2: R2.parquet
   standard_error: STANDARD_ERROR.parquet
   transformation_fixed: TRANSFORMATION_FIXED.parquet
-  transformed_statitics: TRANSFORMED_STATISTICS.parquet
+  transformed_statistics: TRANSFORMED_STATISTICS.parquet
   offset: OFFSET.parquet
   wgen_params: WGENPARAMS.parquet
 
